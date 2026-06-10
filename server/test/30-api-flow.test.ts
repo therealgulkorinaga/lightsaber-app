@@ -91,6 +91,38 @@ describe('Component A: authoring through the schema and lint', () => {
     expect(codes).toContain('source_missing');
   });
 
+  it('a jurisdiction tag outside the regime footprint blocks submission', async () => {
+    // FCA is a UK supervisor; an EU-only tag cannot layer under it.
+    const created = await call('POST', '/api/rules', HALE, {
+      ...CLEAN_RULE,
+      rule_id: 'FCA-XX-001',
+      regime: 'FCA',
+      jurisdiction_tags: ['EU'],
+    });
+    expect(created.status).toBe(200); // drafts may carry issues; submission may not
+    const submit = await call('POST', '/api/rules/FCA-XX-001/submit', HALE, {});
+    expect(submit.status).toBe(422);
+    expect(submit.body.findings.some((f: any) => f.code === 'regime_scope' && /outside FCA's footprint/.test(f.message))).toBe(true);
+  });
+
+  it('the seeded corpus sits entirely inside its regime footprints', async () => {
+    const { rows } = await pool.query(
+      `WITH RECURSIVE up AS (
+         SELECT tag, parent_tag, tag AS leaf FROM shared.jurisdiction
+         UNION ALL
+         SELECT j.tag, j.parent_tag, up.leaf FROM shared.jurisdiction j JOIN up ON j.tag = up.parent_tag
+       ), roots AS (SELECT leaf, tag AS root FROM up WHERE parent_tag IS NULL)
+       SELECT r.rule_id, t.jurisdiction_tag, g.code
+         FROM shared.rule r
+         JOIN shared.rule_jurisdiction t ON t.rule_id = r.rule_id
+         JOIN shared.regime g ON g.code = r.regime
+         JOIN roots ON roots.leaf = t.jurisdiction_tag
+        WHERE r.kind = 'regulatory' AND cardinality(g.jurisdictions) > 0
+          AND NOT roots.root = ANY(g.jurisdictions)`,
+    );
+    expect(rows).toEqual([]); // no seeded rule pairs a tag with a foreign regime
+  });
+
   it('an unknown prospect field is flagged before submission (FR-A.4)', async () => {
     const r = await call('PUT', '/api/rules/NY-AI-005/draft', HALE, { ...CLEAN_RULE, inputs_required: ['firm_type', 'made_up_field'] });
     expect(r.status).toBe(200);

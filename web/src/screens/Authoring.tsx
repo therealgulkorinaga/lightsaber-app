@@ -14,8 +14,23 @@ const TEXT_KEYS = ['statement', 'buyer_reading', 'authority_summary', 'applicabi
 
 interface Meta {
   jurisdictions: { tag: string; parent_tag: string | null; layer_depth: number; display_name: string }[];
-  regimes: { code: string; name: string }[];
+  regimes: { code: string; name: string; jurisdictions: string[] }[];
   prospect_fields: string[];
+}
+
+/** Walk a tag up the tree to its root (EU, UK, US). */
+function rootOf(tag: string, meta: Meta | null): string | null {
+  let cur = meta?.jurisdictions.find((j) => j.tag === tag);
+  while (cur?.parent_tag) cur = meta?.jurisdictions.find((j) => j.tag === cur!.parent_tag);
+  return cur?.tag ?? null;
+}
+
+/** Regimes whose footprint covers every chosen tag; all of them when no tags. */
+function regimesFor(tags: string[], meta: Meta | null) {
+  const all = meta?.regimes ?? [];
+  if (!tags.length) return all;
+  const roots = tags.map((t) => rootOf(t, meta)).filter(Boolean) as string[];
+  return all.filter((r) => !r.jurisdictions?.length || roots.every((root) => r.jurisdictions.includes(root)));
 }
 
 interface DraftState {
@@ -206,6 +221,22 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
       ? { level: 'pass', key: 'auth', title: 'Authority present' }
       : { level: 'block', key: 'auth', title: 'Authority missing', loc: 'Authority', desc: 'Every regulatory rule must carry an authority.' },
   );
+  if (draft.kind === 'regulatory' && draft.regime && draft.jurisdiction_tags.length) {
+    const regime = meta?.regimes.find((r) => r.code === draft.regime);
+    const outside = draft.jurisdiction_tags.filter((t) => {
+      const root = rootOf(t, meta);
+      return regime?.jurisdictions?.length && root && !regime.jurisdictions.includes(root);
+    });
+    items.push(
+      outside.length
+        ? {
+            level: 'block', key: 'regime-scope', title: 'Tag outside the regime footprint', loc: 'Jurisdiction',
+            desc: `${outside.join(', ')} lies outside ${draft.regime}'s footprint (${regime?.jurisdictions.join(', ')}). Use a layered regime such as cross_regime, or correct the tag.`,
+          }
+        : { level: 'pass', key: 'regime-scope', title: 'Regime covers all tags' },
+    );
+  }
+
   const badInputs = draft.inputs_required.filter((f) => !meta?.prospect_fields.includes(f));
   items.push(
     badInputs.length
@@ -636,13 +667,29 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
                 <div className="field-head">
                   <label>Regime</label>
                 </div>
-                <select className="fc-input" value={draft.regime} disabled={!editable} onChange={(e) => set('regime', e.target.value)}>
-                  {(meta?.regimes ?? []).map((r) => (
-                    <option key={r.code} value={r.code}>
-                      {r.code}
-                    </option>
-                  ))}
-                </select>
+                {(() => {
+                  const compatible = regimesFor(draft.jurisdiction_tags, meta);
+                  const orphaned = draft.regime && !compatible.some((r) => r.code === draft.regime);
+                  return (
+                    <>
+                      <select className="fc-input" value={draft.regime} disabled={!editable} onChange={(e) => set('regime', e.target.value)}>
+                        {orphaned && (
+                          <option value={draft.regime}>{draft.regime} (outside footprint)</option>
+                        )}
+                        {compatible.map((r) => (
+                          <option key={r.code} value={r.code}>
+                            {r.code}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="fc-help">
+                        {draft.jurisdiction_tags.length
+                          ? `Narrowed to regimes whose footprint covers ${draft.jurisdiction_tags.join(', ')}.`
+                          : 'All regimes; the list narrows as jurisdiction tags are added.'}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               <div>
                 <div className="field-head">

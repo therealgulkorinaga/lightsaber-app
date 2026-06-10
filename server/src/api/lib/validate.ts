@@ -147,14 +147,41 @@ export async function validateDraft(
   }
 
   // FR-A.3: jurisdiction tags resolve to known nodes.
+  const tagRoot = new Map<string, string>();
   if (d.jurisdiction_tags?.length) {
-    const { rows } = await client.query(`SELECT tag FROM shared.jurisdiction WHERE tag = ANY($1)`, [
-      d.jurisdiction_tags,
-    ]);
-    const known = new Set(rows.map((r) => r.tag));
+    const { rows } = await client.query(
+      `WITH RECURSIVE up AS (
+         SELECT tag, parent_tag, tag AS leaf FROM shared.jurisdiction WHERE tag = ANY($1)
+         UNION ALL
+         SELECT j.tag, j.parent_tag, up.leaf FROM shared.jurisdiction j JOIN up ON j.tag = up.parent_tag
+       )
+       SELECT leaf, tag AS root FROM up WHERE parent_tag IS NULL`,
+      [d.jurisdiction_tags],
+    );
+    for (const r of rows) tagRoot.set(r.leaf, r.root);
     for (const t of d.jurisdiction_tags) {
-      if (!known.has(t)) {
+      if (!tagRoot.has(t)) {
         findings.push({ level: 'block', code: 'unknown_tag', field: 'jurisdiction_tags', message: `${t} is not in the jurisdiction registry` });
+      }
+    }
+  }
+
+  // A regime has a jurisdictional footprint; every tag must layer under it.
+  // FCA cannot fire for an EU-only prospect, DORA cannot fire in Texas.
+  if (d.kind === 'regulatory' && d.regime && d.jurisdiction_tags?.length) {
+    const { rows } = await client.query(`SELECT jurisdictions FROM shared.regime WHERE code = $1`, [d.regime]);
+    const footprint: string[] = rows[0]?.jurisdictions ?? [];
+    if (footprint.length) {
+      for (const t of d.jurisdiction_tags) {
+        const root = tagRoot.get(t);
+        if (root && !footprint.includes(root)) {
+          findings.push({
+            level: 'block',
+            code: 'regime_scope',
+            field: 'jurisdiction_tags',
+            message: `${t} lies outside ${d.regime}'s footprint (${footprint.join(', ')}); use a layered regime such as cross_regime, or correct the tag`,
+          });
+        }
       }
     }
   }

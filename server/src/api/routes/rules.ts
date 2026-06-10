@@ -176,7 +176,7 @@ export function rulesRoutes(app: FastifyInstance) {
   app.get('/api/meta', async () => {
     const [jur, regimes, users, policy] = await Promise.all([
       pool.query(`SELECT tag, parent_tag, layer_depth, display_name FROM shared.jurisdiction ORDER BY layer_depth, tag`),
-      pool.query(`SELECT code, name FROM shared.regime ORDER BY code`),
+      pool.query(`SELECT code, name, jurisdictions FROM shared.regime ORDER BY code`),
       pool.query(`SELECT id, name, role FROM shared.app_user WHERE status = 'active' ORDER BY name`),
       pool.query(`SELECT kind, requires_review, mandatory FROM shared.review_policy`),
     ]);
