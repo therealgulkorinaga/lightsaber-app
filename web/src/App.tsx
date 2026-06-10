@@ -62,6 +62,13 @@ export function App() {
       <div className="lm-main">
         {chrome.actor ? (
           screen()
+        ) : chrome.error ? (
+          <div style={{ padding: 28, font: '400 13px/1.6 var(--font-sans)', color: 'var(--block-text, #B91C1C)' }}>
+            <b>Cannot load.</b> {chrome.error}{' '}
+            <a href="#" onClick={(e) => { e.preventDefault(); bump(); }} style={{ color: 'inherit', textDecoration: 'underline' }}>
+              Retry
+            </a>
+          </div>
         ) : (
           <div style={{ padding: 28, font: '400 13px/1.6 var(--font-sans)', color: 'var(--text-3)' }}>
             Signing in…

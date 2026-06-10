@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { Icn } from './icons.tsx';
 import { Kbd } from './primitives.tsx';
-import { get, currentUserId, setCurrentUserId, type User } from './api.ts';
+import { get, currentUserId, setCurrentUserId, ApiError, type User } from './api.ts';
 
 export interface ChromeData {
   users: User[];
@@ -15,6 +15,7 @@ export interface ChromeData {
   counts: { regulatory: number; icp: number; objection: number; messaging: number };
   queueCount: number;
   watchCount: number;
+  error: string | null;
 }
 
 export function useChromeData(refreshKey: number): ChromeData {
@@ -26,6 +27,7 @@ export function useChromeData(refreshKey: number): ChromeData {
     counts: { regulatory: 0, icp: 0, objection: 0, messaging: 0 },
     queueCount: 0,
     watchCount: 0,
+    error: null,
   });
 
   useEffect(() => {
@@ -62,8 +64,21 @@ export function useChromeData(refreshKey: number): ChromeData {
         counts,
         queueCount: queue.queue.filter((q: any) => q.review_state === 'in_review').length,
         watchCount: watch.items.filter((w: any) => w.status !== 'resolved').length,
+        error: null,
       });
-    })().catch(console.error);
+    })().catch((e) => {
+      console.error(e);
+      const apiDown =
+        e instanceof TypeError || // fetch network failure
+        (e instanceof ApiError && e.status >= 500) || // vite proxy ECONNREFUSED
+        /fetch|network|JSON/i.test(String(e?.message));
+      setData((d) => ({
+        ...d,
+        error: apiDown
+          ? 'Cannot reach the API on :4000. Start it with: npm run dev:server'
+          : String(e?.message ?? e),
+      }));
+    });
   }, [refreshKey]);
 
   return data;
