@@ -400,9 +400,11 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
 
   const set = (k: keyof DraftState, v: any) => setDraft((d) => ({ ...d, [k]: v }));
 
+  const canAuthor = !!actor && ['author', 'reviewer', 'practice_lead'].includes(actor.role);
   const editable =
-    newMode ||
-    (openVersion && ['draft', 'returned'].includes(openVersion.review_state) && openVersion.author_id === actor?.id);
+    canAuthor &&
+    (newMode ||
+      (openVersion && ['draft', 'returned'].includes(openVersion.review_state) && openVersion.author_id === actor?.id));
   const inReview = openVersion?.review_state === 'in_review';
 
   const resolve = (fix: string) =>
@@ -454,7 +456,8 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
     } catch (e) {
       const err = e as ApiError;
       setServerFindings(err.findings ?? []);
-      setBanner({ tone: 'err', text: err.message });
+      const detail = err.findings?.map((f) => f.message).join(' · ');
+      setBanner({ tone: 'err', text: detail ? `${err.message}: ${detail}` : err.message });
     } finally {
       setSaving(false);
     }
@@ -523,7 +526,15 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
             <option value="__new__">+ New rule…</option>
           </select>
           <span style={{ marginLeft: 'auto' }}>
-            <Button variant="ghost" size="sm" icon="plus" onClick={startNew}>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="plus"
+              disabled={!canAuthor}
+              title={!canAuthor ? `${actor?.role.replace('_', ' ') ?? 'This role'} cannot author substance (FR-9.7); switch user top-right` : undefined}
+              style={!canAuthor ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+              onClick={() => canAuthor && startNew()}
+            >
               New rule
             </Button>
           </span>
@@ -601,7 +612,14 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
             )}
           </div>
 
-          <Field label="Rule ID" help="Stable and unique. Never reused — a superseded rule is retired and its replacement takes a new ID.">
+          <Field
+            label="Rule ID"
+            help={
+              newMode
+                ? 'Convention: REGIME-TOPIC-NNN with a three-digit number, e.g. NY-AI-006 or DORA-CON-008. Uppercase. Never reused, retired IDs included.'
+                : 'Stable and unique. Never reused — a superseded rule is retired and its replacement takes a new ID.'
+            }
+          >
             <input
               className="fc-input fc-mono"
               value={draft.rule_id}
@@ -751,7 +769,15 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
       <div className="ws-actions">
         <span className="gate">
           <Icn name={blocks ? 'alertCircle' : 'checkCircle'} size={16} color={blocks ? 'var(--block)' : 'var(--ok)'} />
-          {blocks ? (
+          {!canAuthor ? (
+            <span>
+              <b>{actor?.role.replace('_', ' ')}</b> cannot author substance (FR-9.7) — switch user top-right
+            </span>
+          ) : newMode ? (
+            <span>
+              <b>New rule.</b> Create the draft first; submit for review from the saved draft.
+            </span>
+          ) : blocks ? (
             <span>
               <b>
                 {blocks} {blocks === 1 ? 'flag' : 'flags'}
