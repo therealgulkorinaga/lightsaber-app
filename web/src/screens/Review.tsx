@@ -33,7 +33,7 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
   };
 
   const giveBack = async (ruleId: string) => {
-    const notes = window.prompt('Return with notes (required, FR-B.2):');
+    const notes = window.prompt('Return with notes for the author (required):');
     if (!notes) return;
     setError(null);
     try {
@@ -56,8 +56,8 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
           intro={
             <span>
               <span className="hl">Rules submitted for review.</span> A reviewer reads each one, then approves it into the next
-              release candidate. The author of a version can never be its reviewer (FR-B.1); analysts cannot approve substance
-              (FR-9.7).
+              release candidate. The author of a version never reviews their own work; substance always takes a second
+              qualified pair of eyes.
             </span>
           }
         >

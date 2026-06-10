@@ -153,7 +153,7 @@ export function Releases({ actor, onMutate }: { actor: User | null; onMutate: ()
             <span>
               <span className="hl">Nothing ships without a passing gate.</span> A candidate assembles the approved rules since the
               last release. All five checks must be green before publish — every check, every case. The block is enforced in the
-              database, not the interface (FR-9.3).
+              record itself, not the interface.
             </span>
           }
         >
@@ -199,7 +199,7 @@ export function Releases({ actor, onMutate }: { actor: User | null; onMutate: ()
                 </div>
                 <div className="pb-d">
                   {release.status === 'published'
-                    ? `Seam ${release.version} is pinned, immutable and exported. Re-export reproduces the same checksum (FR-9.6).`
+                    ? `Seam ${release.version} is pinned, immutable and exported. Re-export reproduces the identical bundle.`
                     : release.status === 'eval_failed'
                       ? 'Fix the failing case and re-run the gate, or pull the offending rule from the next candidate.'
                       : release.status === 'eval_passed'

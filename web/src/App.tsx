@@ -25,10 +25,10 @@ export function App() {
             intro="Where the seam is deep, where it is thin, and what it is costing. The matrix reads depth and freshness across jurisdictions and regimes; the backlog ranks the gaps live deals are abstaining on."
             phase="Phase 3 (Component D)"
             items={[
-              'Gap ingestion from deployed skills, against the bounded abstraction schema (FR-D.1, FR-9.5)',
-              'Analyst triage: duplicate, backlog, reject (FR-D.2)',
-              'Backlog ranked by frequency and deal-cost (FR-D.3)',
-              'Coverage measured per jurisdiction and regime (FR-D.4)',
+              'Gaps flow in from live deals: every abstention the skill logs becomes a candidate for new coverage',
+              'Triage: duplicate, backlog or reject, with reasons kept',
+              'Backlog ranked by how often a gap appears and what it cost',
+              'Coverage measured per jurisdiction and regime',
             ]}
           />
         );
@@ -41,10 +41,10 @@ export function App() {
             intro="Who is running what. Each adopter pins a seam version; claims are isolated behind row-level security and never cross tenants."
             phase="Phase 2 (Component F)"
             items={[
-              'Provision tenants with RLS-scoped claims namespaces (FR-F.1)',
-              'Author and approve tenant claims through Review (FR-F.3)',
-              'Pin, deploy and upgrade against published seam versions (FR-F.4 to FR-F.6)',
-              'Read-only client portal with coverage, freshness and audit pulls (FR-H.3)',
+              'Provision adopters; each holds its own isolated claims file',
+              'Tenant claims authored by the adopter, approved through Review like any substance',
+              'Pin each adopter to a published seam version; deploy and upgrade on approval',
+              'A read-only client portal: coverage, freshness, audit pulls',
             ]}
           />
         );

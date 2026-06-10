@@ -1,7 +1,8 @@
 // Screen 01 — Rule Authoring Workspace (Component A), wired to the API.
-// Schema form (left) + gate-first review with inline diff (right), per the
-// design. Lint runs as you type; structural validation comes back from every
-// save; submission is blocked while anything stands (FR-A.5).
+// Built for the authoring lawyer: substance first (what the rule says, what
+// it rests on), mechanics last and mostly automatic. The system allocates
+// rule IDs from a topic code; lint runs as you type; structural validation
+// returns on every save; submission is blocked while anything stands.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { lintText } from '@lightsaber/voice-lint';
@@ -11,6 +12,16 @@ import { wordDiff, type DiffPart } from '../diff.ts';
 import { get, post, put, ApiError, type User } from '../api.ts';
 
 const TEXT_KEYS = ['statement', 'buyer_reading', 'authority_summary', 'applicability'] as const;
+
+// Lawyer-facing labels for the per-kind body fields.
+const KIND_FIELD_LABELS: Record<string, string> = {
+  substance: 'Substance',
+  gap_text: 'Claims gap',
+  test_raw: 'Test',
+  rationale_raw: 'Rationale',
+  anchors_raw: 'Scoring anchors (0 / 1 / 2)',
+  why_raw: 'Why it matters',
+};
 
 interface Meta {
   jurisdictions: { tag: string; parent_tag: string | null; layer_depth: number; display_name: string }[];
@@ -106,6 +117,24 @@ function DiffInline({ parts }: { parts: DiffPart[] }) {
   );
 }
 
+function SectionLabel({ children, first }: { children: React.ReactNode; first?: boolean }) {
+  return (
+    <div
+      style={{
+        font: '600 10.5px/1 var(--font-sans)',
+        letterSpacing: '0.09em',
+        textTransform: 'uppercase',
+        color: 'var(--text-4)',
+        margin: first ? '4px 0 14px' : '28px 0 14px',
+        paddingTop: first ? 0 : 20,
+        borderTop: first ? 'none' : '1px solid var(--border)',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function Field({
   label,
   changed,
@@ -135,12 +164,14 @@ function TagChips({
   onAdd,
   onRemove,
   layered,
+  addPrompt,
 }: {
   tags: string[];
   meta?: Meta | null;
   onAdd: (t: string) => void;
   onRemove: (t: string) => void;
   layered?: boolean;
+  addPrompt: string;
 }) {
   const layerOf = (t: string) => {
     const j = meta?.jurisdictions.find((x) => x.tag === t);
@@ -150,7 +181,10 @@ function TagChips({
   return (
     <div className="jtags">
       {tags.map((t) => (
-        <span key={t} className={'jtag' + (layered && meta?.jurisdictions.find((x) => x.tag === t && !x.parent_tag) ? ' parent' : '')}>
+        <span
+          key={t}
+          className={'jtag' + (layered && meta?.jurisdictions.find((x) => x.tag === t && !x.parent_tag) ? ' parent' : '')}
+        >
           <span>{t}</span>
           {layered && <span className="lvl">{layerOf(t)}</span>}
           <span className="rm" title="remove" onClick={() => onRemove(t)} style={{ cursor: 'pointer' }}>
@@ -162,7 +196,7 @@ function TagChips({
         className="jtag-add"
         title="add"
         onClick={() => {
-          const v = window.prompt(layered ? 'Jurisdiction tag (e.g. EU, IE, US-NY):' : 'Prospect field:');
+          const v = window.prompt(addPrompt);
           if (v) onAdd(v.trim());
         }}
       >
@@ -196,14 +230,22 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
     for (const hit of lintText(text || '')) {
       if (hit.type === 'em_dash') {
         items.push({
-          level: 'block', key: `emdash-${field}`, title: 'Em-dash found', loc: field,
-          desc: 'The seam voice allows no em-dashes. Auto-resolve swaps it for a comma.', fix: 'emdash',
+          level: 'block',
+          key: `emdash-${field}`,
+          title: 'Em-dash found',
+          loc: field,
+          desc: 'The seam voice allows no em-dashes. Auto-resolve swaps it for a comma.',
+          fix: 'emdash',
           overridable: { field, word: 'em_dash' },
         });
       } else {
         items.push({
-          level: 'block', key: `banned-${field}-${hit.word}`, title: `Kill-list word: “${hit.word}”`, loc: field,
-          desc: `“${hit.word}” is on the voice kill-list. Auto-resolve rewrites it.`, fix: 'banned',
+          level: 'block',
+          key: `banned-${field}-${hit.word}`,
+          title: `Kill-list word: “${hit.word}”`,
+          loc: field,
+          desc: `“${hit.word}” is on the voice kill-list. Auto-resolve rewrites it.`,
+          fix: 'banned',
           overridable: { field, word: hit.word! },
         });
       }
@@ -213,14 +255,16 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
   const badTags = draft.jurisdiction_tags.filter((t) => !meta?.jurisdictions.some((j) => j.tag === t));
   items.push(
     badTags.length
-      ? { level: 'block', key: 'tags', title: 'Unknown jurisdiction tag', loc: 'Jurisdiction', desc: `${badTags.join(', ')} is not in the registry.` }
-      : { level: 'pass', key: 'tags', title: 'Jurisdiction tags valid' },
+      ? {
+          level: 'block',
+          key: 'tags',
+          title: 'Unknown jurisdiction',
+          loc: 'Jurisdiction',
+          desc: `${badTags.join(', ')} is not in the registry.`,
+        }
+      : { level: 'pass', key: 'tags', title: 'Jurisdiction valid' },
   );
-  items.push(
-    draft.kind !== 'regulatory' || draft.authority_summary.trim()
-      ? { level: 'pass', key: 'auth', title: 'Authority present' }
-      : { level: 'block', key: 'auth', title: 'Authority missing', loc: 'Authority', desc: 'Every regulatory rule must carry an authority.' },
-  );
+
   if (draft.kind === 'regulatory' && draft.regime && draft.jurisdiction_tags.length) {
     const regime = meta?.regimes.find((r) => r.code === draft.regime);
     const outside = draft.jurisdiction_tags.filter((t) => {
@@ -230,28 +274,60 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
     items.push(
       outside.length
         ? {
-            level: 'block', key: 'regime-scope', title: 'Tag outside the regime footprint', loc: 'Jurisdiction',
-            desc: `${outside.join(', ')} lies outside ${draft.regime}'s footprint (${regime?.jurisdictions.join(', ')}). Use a layered regime such as cross_regime, or correct the tag.`,
+            level: 'block',
+            key: 'regime-scope',
+            title: 'Jurisdiction outside the regime',
+            loc: 'Jurisdiction',
+            desc: `${draft.regime} does not reach ${outside.join(', ')}. Use a layered regime such as cross_regime, or correct the tag.`,
           }
-        : { level: 'pass', key: 'regime-scope', title: 'Regime covers all tags' },
+        : { level: 'pass', key: 'regime-scope', title: 'Regime covers the jurisdictions' },
     );
   }
 
+  items.push(
+    draft.kind !== 'regulatory' || draft.authority_summary.trim()
+      ? { level: 'pass', key: 'auth', title: 'Authority present' }
+      : {
+          level: 'block',
+          key: 'auth',
+          title: 'Authority missing',
+          loc: 'Authority',
+          desc: 'Every regulatory rule names the instrument it rests on.',
+        },
+  );
   const badInputs = draft.inputs_required.filter((f) => !meta?.prospect_fields.includes(f));
   items.push(
     badInputs.length
-      ? { level: 'block', key: 'inputs', title: 'Unknown input field', loc: 'Inputs', desc: `${badInputs.join(', ')} is not a prospect field.` }
-      : { level: 'pass', key: 'inputs', title: 'Inputs mapped' },
+      ? {
+          level: 'block',
+          key: 'inputs',
+          title: 'Unknown prospect fact',
+          loc: 'Needed facts',
+          desc: `${badInputs.join(', ')} is not a fact the engine collects about a prospect.`,
+        }
+      : { level: 'pass', key: 'inputs', title: 'Needed facts recognised' },
   );
   items.push(
     draft.kind !== 'regulatory' || draft.buyer_reading.trim()
       ? { level: 'pass', key: 'buyer', title: 'Buyer reading set' }
-      : { level: 'block', key: 'buyer', title: 'Buyer reading missing', loc: 'Buyer reading', desc: 'The selling read must be authored.' },
+      : {
+          level: 'block',
+          key: 'buyer',
+          title: 'Buyer reading missing',
+          loc: 'Buyer reading',
+          desc: 'The selling read must be authored.',
+        },
   );
   items.push(
     draft.kind !== 'regulatory' || draft.sources.length
-      ? { level: 'pass', key: 'source', title: 'Authority source attached' }
-      : { level: 'block', key: 'source', title: 'No authority source', loc: 'Sources', desc: 'A regulatory rule with no source cannot be submitted (FR-A.6).' },
+      ? { level: 'pass', key: 'source', title: 'Source attached' }
+      : {
+          level: 'block',
+          key: 'source',
+          title: 'No source',
+          loc: 'Sources',
+          desc: 'A regulatory rule cannot be submitted without the citation it rests on.',
+        },
   );
   return items;
 }
@@ -295,7 +371,7 @@ function ReviewPanel({
                 )}
                 {it.overridable && (
                   <Button variant="ghost" size="sm" onClick={() => onOverride(it.overridable!.field, it.overridable!.word)}>
-                    Override with reason…
+                    Keep it, with a reason…
                   </Button>
                 )}
               </div>
@@ -305,10 +381,8 @@ function ReviewPanel({
             <div key={`srv-${i}`} className="gate-issue">
               <div className="gi-top">
                 <Icn name="alertCircle" size={15} color="var(--block)" />
-                <span className="gi-title">{f.code.replaceAll('_', ' ')}</span>
-                {f.field && <span className="gi-where">{f.field}</span>}
+                <span className="gi-title">{f.message}</span>
               </div>
-              <p className="gi-desc">{f.message}</p>
             </div>
           ))}
         </div>
@@ -316,7 +390,7 @@ function ReviewPanel({
       <div className="gate-passed">
         <Icn name="check" size={14} color="var(--ok)" />
         <span>
-          <b>{passed} checks passed</b> — validation runs again at submission and at the release gate
+          <b>{passed} checks passed</b> — everything is checked again at submission and before any release ships
         </span>
       </div>
     </div>
@@ -344,7 +418,7 @@ function ChangesPanel({ draft, baseline }: { draft: DraftState; baseline: DraftS
     { key: 'applicability', label: 'Applicability' },
     { key: 'movement_note', label: 'Movement note' },
     { key: 'jurisdiction_tags', label: 'Jurisdiction', join: true },
-    { key: 'inputs_required', label: 'Inputs required', join: true },
+    { key: 'inputs_required', label: 'Needed facts', join: true },
   ];
   const ser = (v: unknown) => (Array.isArray(v) ? v.join('|') : String(v ?? ''));
   const changed = rows.filter((r) => ser(draft[r.key]) !== ser(baseline[r.key]));
@@ -357,7 +431,7 @@ function ChangesPanel({ draft, baseline }: { draft: DraftState; baseline: DraftS
       </div>
       {changed.length === 0 && (
         <div className="chg-unchanged" style={{ borderTop: 'none', paddingTop: 4 }}>
-          No edits yet — change a field and it appears here. An unchanged submission is rejected (FR-A.7).
+          No edits yet — change a field and it appears here. An unchanged submission is rejected.
         </div>
       )}
       {changed.map((r) => (
@@ -365,7 +439,8 @@ function ChangesPanel({ draft, baseline }: { draft: DraftState; baseline: DraftS
           <div className="chg-name">{r.label}</div>
           {r.join ? (
             <div className="chg-text">
-              {(baseline[r.key] as string[]).join(', ')} <span className="di-ins">{(draft[r.key] as string[]).join(', ')}</span>
+              {(baseline[r.key] as string[]).join(', ')}{' '}
+              <span className="di-ins">{(draft[r.key] as string[]).join(', ')}</span>
             </div>
           ) : (
             <DiffInline parts={wordDiff(baseline[r.key] as string, draft[r.key] as string)} />
@@ -388,6 +463,7 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
   const [serverFindings, setServerFindings] = useState<any[]>([]);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [newMode, setNewMode] = useState(false);
+  const [topic, setTopic] = useState('');
   const [saving, setSaving] = useState(false);
 
   const loadRules = useCallback(async () => {
@@ -426,6 +502,30 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
     if (selected && !newMode) loadDetail(selected).catch(console.error);
   }, [selected, newMode, loadDetail]);
 
+  // The system allocates the rule ID from regime, jurisdiction and topic.
+  useEffect(() => {
+    if (!newMode) return;
+    if (draft.kind === 'regulatory' && topic.trim().length < 2) {
+      setDraft((d) => ({ ...d, rule_id: '' }));
+      return;
+    }
+    const h = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({
+          kind: draft.kind,
+          regime: draft.regime,
+          jurisdiction: draft.jurisdiction_tags[0] ?? '',
+          topic: topic.trim(),
+        });
+        const r = await get(`/api/rules/suggest-id?${params}`);
+        setDraft((d) => ({ ...d, rule_id: r.rule_id }));
+      } catch {
+        /* keep typing; allocation retries on the next change */
+      }
+    }, 300);
+    return () => clearTimeout(h);
+  }, [newMode, topic, draft.kind, draft.regime, draft.jurisdiction_tags.join(',')]);
+
   const lint = useMemo(() => computeClientLint(draft, meta), [draft, meta]);
   const blocks = lint.filter((i) => i.level === 'block').length + serverFindings.length;
 
@@ -458,7 +558,7 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
     if (!reason) return;
     try {
       await post(`/api/rules/${draft.rule_id}/lint-overrides`, { field, word, reason });
-      setBanner({ tone: 'ok', text: `Override recorded for ${field}. It clears at submission.` });
+      setBanner({ tone: 'ok', text: `Noted. The reason is on the record; this flag clears at submission.` });
     } catch (e) {
       setBanner({ tone: 'err', text: (e as Error).message });
     }
@@ -469,13 +569,17 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
     try {
       const payload: any = { ...draft };
       if (draft.movement_note && !payload.kind_fields.watch) {
-        payload.kind_fields = { ...payload.kind_fields, watch: { trigger_type: 'event', event_description: draft.movement_note, reverify_date: null } };
+        payload.kind_fields = {
+          ...payload.kind_fields,
+          watch: { trigger_type: 'event', event_description: draft.movement_note, reverify_date: null },
+        };
       }
       if (newMode) {
         await post('/api/rules', payload);
         setNewMode(false);
+        setTopic('');
         setSelected(draft.rule_id);
-        setBanner({ tone: 'ok', text: `${draft.rule_id} created as a private draft (FR-A.8).` });
+        setBanner({ tone: 'ok', text: `${draft.rule_id} created. It stays private to you until submitted.` });
       } else {
         const r = await put(`/api/rules/${draft.rule_id}/draft`, payload);
         setServerFindings(r.findings?.filter((f: any) => f.level === 'block') ?? []);
@@ -487,8 +591,8 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
     } catch (e) {
       const err = e as ApiError;
       setServerFindings(err.findings ?? []);
-      const detail = err.findings?.map((f) => f.message).join(' · ');
-      setBanner({ tone: 'err', text: detail ? `${err.message}: ${detail}` : err.message });
+      const detailText = err.findings?.map((f) => f.message).join(' · ');
+      setBanner({ tone: 'err', text: detailText ? `${err.message}: ${detailText}` : err.message });
     } finally {
       setSaving(false);
     }
@@ -513,12 +617,14 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
     } catch (e) {
       const err = e as ApiError;
       setServerFindings(err.findings ?? []);
-      setBanner({ tone: 'err', text: err.message });
+      const detailText = err.findings?.map((f) => f.message).join(' · ');
+      setBanner({ tone: 'err', text: detailText ? `${err.message}: ${detailText}` : err.message });
     }
   };
 
   const startNew = () => {
     setNewMode(true);
+    setTopic('');
     setDetail(null);
     setOpenVersion(null);
     setBaseline(null);
@@ -529,6 +635,10 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
 
   const ruleStatus = newMode ? 'draft' : (openVersion?.review_state ?? detail?.rule?.status ?? 'active');
   const provenance = openVersion ?? detail?.versions?.at(-1);
+  const compatible = regimesFor(draft.jurisdiction_tags, meta);
+  const orphaned = draft.regime && !compatible.some((r) => r.code === draft.regime);
+
+  const ch = (k: keyof DraftState) => (baseline ? String(draft[k] ?? '') !== String(baseline[k] ?? '') : false);
 
   return (
     <>
@@ -562,7 +672,7 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
               size="sm"
               icon="plus"
               disabled={!canAuthor}
-              title={!canAuthor ? `${actor?.role.replace('_', ' ') ?? 'This role'} cannot author substance (FR-9.7); switch user top-right` : undefined}
+              title={!canAuthor ? `Substance is authored by the legal specialists; switch user top-right` : undefined}
               style={!canAuthor ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
               onClick={() => canAuthor && startNew()}
             >
@@ -571,20 +681,19 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
           </span>
         </div>
         <div className="ws-title-row">
-          <Rid size="lg">{newMode ? draft.rule_id || 'NEW-RULE-ID' : selected}</Rid>
+          <Rid size="lg">{newMode ? draft.rule_id || 'ID allocates as you type' : selected}</Rid>
           <Status state={ruleStatus} />
           {openVersion && (
             <span style={{ font: '500 11.5px/1 var(--font-mono)', color: 'var(--text-3)' }}>
               editing v{openVersion.semver_at_author}
-              {baseline ? ` · active on file v${baseline ? (detail?.versions.find((v: any) => v.id === openVersion.supersedes_version_id)?.semver_at_author ?? '') : ''}` : ''}
             </span>
           )}
           <h1 style={{ width: '100%', marginTop: 8 }}>{draft.title || 'Untitled rule'}</h1>
         </div>
         <p className="ws-intro">
-          <span className="hl">{newMode ? 'Author a new rule, then send it for review.' : 'Revise this rule, then send it for review.'}</span>{' '}
-          Edit the fields on the left. The review panel flags anything that must be fixed and shows exactly what changed against
-          the live version.
+          <span className="hl">{newMode ? 'Author the rule, then send it for review.' : 'Revise the rule, then send it for review.'}</span>{' '}
+          Write the substance on the left. The panel on the right flags anything a reviewer would bounce, and shows exactly what
+          changed against the version on file.
         </p>
         <div className="submeta" style={{ marginTop: 14 }}>
           <span>
@@ -616,159 +725,277 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
         >
           <Icn name={banner.tone === 'ok' ? 'checkCircle' : 'alertCircle'} size={16} />
           {banner.text}
-          <a href="#" onClick={(e) => { e.preventDefault(); setBanner(null); }} style={{ marginLeft: 'auto', textDecoration: 'underline', color: 'inherit' }}>
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              setBanner(null);
+            }}
+            style={{ marginLeft: 'auto', textDecoration: 'underline', color: 'inherit' }}
+          >
             Dismiss
           </a>
         </div>
       )}
 
       <div className="editor">
-        {/* LEFT — schema form */}
+        {/* LEFT — substance first, mechanics last */}
         <div className="pane pane-form">
           <div className="form-intro">
             <div>
               <h3>{newMode ? 'New rule' : 'Edit rule'}</h3>
               <p>
                 {editable
-                  ? 'Change any field. Edits are marked and mirrored in the review panel.'
+                  ? 'Write what the rule says, what it rests on, and when it applies.'
                   : inReview
-                    ? 'This version is in review. It is frozen until approved or returned.'
-                    : 'No open draft. Open a new version to edit this rule.'}
+                    ? 'This version is with the reviewer. It is frozen until approved or returned.'
+                    : canAuthor
+                      ? 'No open draft. Open a new version to revise this rule.'
+                      : 'Read-only for your role.'}
               </p>
             </div>
-            {!newMode && !openVersion && detail?.rule?.status !== 'retired' && (
+            {!newMode && !openVersion && canAuthor && detail?.rule?.status !== 'retired' && (
               <Button variant="secondary" size="sm" icon="edit" onClick={openNewVersion}>
                 Open new version
               </Button>
             )}
           </div>
 
-          <Field
-            label="Rule ID"
-            help={
-              newMode
-                ? 'Convention: REGIME-TOPIC-NNN with a three-digit number, e.g. NY-AI-006 or DORA-CON-008. Uppercase. Never reused, retired IDs included.'
-                : 'Stable and unique. Never reused — a superseded rule is retired and its replacement takes a new ID.'
-            }
-          >
+          {/* ── What the rule says ─────────────────────────── */}
+          <SectionLabel first>What the rule says</SectionLabel>
+
+          <Field label="Title">
             <input
-              className="fc-input fc-mono"
-              value={draft.rule_id}
-              readOnly={!newMode}
-              onChange={(e) => set('rule_id', e.target.value.toUpperCase())}
-              placeholder="e.g. NY-AI-006"
-              style={!newMode ? { background: 'var(--slate-50)', color: 'var(--text-2)' } : undefined}
-            />
-          </Field>
-
-          <div className="field">
-            <div className="fc-row">
-              <div>
-                <div className="field-head">
-                  <label>Regime</label>
-                </div>
-                {(() => {
-                  const compatible = regimesFor(draft.jurisdiction_tags, meta);
-                  const orphaned = draft.regime && !compatible.some((r) => r.code === draft.regime);
-                  return (
-                    <>
-                      <select className="fc-input" value={draft.regime} disabled={!editable} onChange={(e) => set('regime', e.target.value)}>
-                        {orphaned && (
-                          <option value={draft.regime}>{draft.regime} (outside footprint)</option>
-                        )}
-                        {compatible.map((r) => (
-                          <option key={r.code} value={r.code}>
-                            {r.code}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="fc-help">
-                        {draft.jurisdiction_tags.length
-                          ? `Narrowed to regimes whose footprint covers ${draft.jurisdiction_tags.join(', ')}.`
-                          : 'All regimes; the list narrows as jurisdiction tags are added.'}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-              <div>
-                <div className="field-head">
-                  <label>Title</label>
-                </div>
-                <input className="fc-input" value={draft.title} readOnly={!editable} onChange={(e) => set('title', e.target.value)} />
-              </div>
-            </div>
-          </div>
-
-          <Field label="Jurisdiction" help="Tags layer: EU covers every member state; member-state and city tags stack national rules on top.">
-            <TagChips
-              tags={draft.jurisdiction_tags}
-              meta={meta}
-              layered
-              onAdd={(t) => editable && set('jurisdiction_tags', [...draft.jurisdiction_tags, t])}
-              onRemove={(t) => editable && set('jurisdiction_tags', draft.jurisdiction_tags.filter((x) => x !== t))}
+              className="fc-input"
+              value={draft.title}
+              readOnly={!editable}
+              placeholder="A short label, e.g. Mandatory contractual provisions"
+              onChange={(e) => set('title', e.target.value)}
             />
           </Field>
 
           {draft.kind === 'regulatory' ? (
             <>
-              <Field label="Statement" changed={baseline ? draft.statement !== baseline.statement : false} help="The single proposition the engine may assert. This is what grounds every cited claim.">
-                <textarea className={'fc-area' + (baseline && draft.statement !== baseline.statement ? ' edited' : '')} rows={7} value={draft.statement} readOnly={!editable} onChange={(e) => set('statement', e.target.value)} />
+              <Field
+                label="Statement"
+                changed={ch('statement')}
+                help="The single legal proposition the engine may assert, stated as it operates. One rule, one assertable unit."
+              >
+                <textarea
+                  className={'fc-area' + (ch('statement') ? ' edited' : '')}
+                  rows={7}
+                  value={draft.statement}
+                  readOnly={!editable}
+                  onChange={(e) => set('statement', e.target.value)}
+                />
               </Field>
-              <Field label="Buyer reading" changed={baseline ? draft.buyer_reading !== baseline.buyer_reading : false} help="How a compliance buyer reads this in a deal. Where the selling value lives — kept separate from the Statement.">
-                <textarea className={'fc-area' + (baseline && draft.buyer_reading !== baseline.buyer_reading ? ' edited' : '')} rows={4} value={draft.buyer_reading} readOnly={!editable} onChange={(e) => set('buyer_reading', e.target.value)} />
+              <Field
+                label="Buyer reading"
+                changed={ch('buyer_reading')}
+                help="How the buyer's compliance function reads this in a buying decision. Written from deal experience, kept apart from the Statement."
+              >
+                <textarea
+                  className={'fc-area' + (ch('buyer_reading') ? ' edited' : '')}
+                  rows={4}
+                  value={draft.buyer_reading}
+                  readOnly={!editable}
+                  onChange={(e) => set('buyer_reading', e.target.value)}
+                />
               </Field>
-              <Field label="Authority" changed={baseline ? draft.authority_summary !== baseline.authority_summary : false} help="The instrument it rests on, at article level. Never invented.">
-                <textarea className={'fc-area fc-mono' + (baseline && draft.authority_summary !== baseline.authority_summary ? ' edited' : '')} rows={2} value={draft.authority_summary} readOnly={!editable} onChange={(e) => set('authority_summary', e.target.value)} />
+
+              {/* ── What it rests on ──────────────────────────── */}
+              <SectionLabel>What it rests on</SectionLabel>
+
+              <Field
+                label="Authority"
+                changed={ch('authority_summary')}
+                help="The instrument, at article level where you are certain, instrument level otherwise. Never invented."
+              >
+                <textarea
+                  className={'fc-area fc-mono' + (ch('authority_summary') ? ' edited' : '')}
+                  rows={2}
+                  value={draft.authority_summary}
+                  readOnly={!editable}
+                  onChange={(e) => set('authority_summary', e.target.value)}
+                />
               </Field>
-              <Field label="Applicability" changed={baseline ? draft.applicability !== baseline.applicability : false}>
-                <textarea className={'fc-area' + (baseline && draft.applicability !== baseline.applicability ? ' edited' : '')} rows={3} value={draft.applicability} readOnly={!editable} onChange={(e) => set('applicability', e.target.value)} />
-              </Field>
-              <Field label="Inputs required" help="Prospect fields the engine needs before applying the rule. Drives the coverage gate.">
-                <TagChips tags={draft.inputs_required} meta={meta} onAdd={(t) => editable && set('inputs_required', [...draft.inputs_required, t])} onRemove={(t) => editable && set('inputs_required', draft.inputs_required.filter((x) => x !== t))} />
-              </Field>
-              <Field label="Sources" help="The authority sources behind the rule (FR-A.6). Citation, type, optional URL.">
+              <Field label="Sources" help="Where a reviewer or an auditor goes to verify the authority.">
                 {draft.sources.map((s, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
-                    <input className="fc-input fc-mono" style={{ flex: 1 }} value={s.citation} readOnly={!editable} onChange={(e) => set('sources', draft.sources.map((x, j) => (j === i ? { ...x, citation: e.target.value } : x)))} />
-                    <select className="fc-input" style={{ width: 130 }} value={s.source_type} disabled={!editable} onChange={(e) => set('sources', draft.sources.map((x, j) => (j === i ? { ...x, source_type: e.target.value } : x)))}>
+                    <input
+                      className="fc-input fc-mono"
+                      style={{ flex: 1 }}
+                      value={s.citation}
+                      readOnly={!editable}
+                      placeholder="Citation"
+                      onChange={(e) =>
+                        set('sources', draft.sources.map((x, j) => (j === i ? { ...x, citation: e.target.value } : x)))
+                      }
+                    />
+                    <select
+                      className="fc-input"
+                      style={{ width: 130 }}
+                      value={s.source_type}
+                      disabled={!editable}
+                      onChange={(e) =>
+                        set('sources', draft.sources.map((x, j) => (j === i ? { ...x, source_type: e.target.value } : x)))
+                      }
+                    >
                       {['statute', 'regulation', 'guidance', 'RTS', 'circular', 'executive_order', 'case', 'other'].map((t) => (
                         <option key={t}>{t}</option>
                       ))}
                     </select>
                     {editable && (
-                      <span style={{ cursor: 'pointer', color: 'var(--text-3)' }} onClick={() => set('sources', draft.sources.filter((_, j) => j !== i))}>
+                      <span
+                        style={{ cursor: 'pointer', color: 'var(--text-3)' }}
+                        onClick={() => set('sources', draft.sources.filter((_, j) => j !== i))}
+                      >
                         <Icn name="x" size={13} />
                       </span>
                     )}
                   </div>
                 ))}
                 {editable && (
-                  <Button variant="ghost" size="sm" icon="plus" onClick={() => set('sources', [...draft.sources, { citation: '', source_type: 'guidance' }])}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="plus"
+                    onClick={() => set('sources', [...draft.sources, { citation: '', source_type: 'guidance' }])}
+                  >
                     Add source
                   </Button>
                 )}
               </Field>
-              <Field label="Movement note" help="A pending dated or event-based change. Saving a movement note arms a watch item (FR-A.9).">
-                <textarea className="fc-area" rows={2} value={draft.movement_note} readOnly={!editable} onChange={(e) => set('movement_note', e.target.value)} />
+
+              {/* ── Where and when it applies ─────────────────── */}
+              <SectionLabel>Where and when it applies</SectionLabel>
+
+              <Field label="Jurisdiction" help="Tags layer: EU covers every member state; a national or city tag stacks local rules on top.">
+                <TagChips
+                  tags={draft.jurisdiction_tags}
+                  meta={meta}
+                  layered
+                  addPrompt="Jurisdiction tag (e.g. EU, IE, US-NY):"
+                  onAdd={(t) => editable && set('jurisdiction_tags', [...draft.jurisdiction_tags, t])}
+                  onRemove={(t) => editable && set('jurisdiction_tags', draft.jurisdiction_tags.filter((x) => x !== t))}
+                />
+              </Field>
+
+              <Field
+                label="Regime"
+                help={
+                  draft.jurisdiction_tags.length
+                    ? `Only regimes that reach ${draft.jurisdiction_tags.join(', ')} are offered.`
+                    : 'All regimes; the list narrows once a jurisdiction is set.'
+                }
+              >
+                <select className="fc-input" value={draft.regime} disabled={!editable} onChange={(e) => set('regime', e.target.value)}>
+                  {orphaned && <option value={draft.regime}>{draft.regime} (does not reach these jurisdictions)</option>}
+                  {compatible.map((r) => (
+                    <option key={r.code} value={r.code}>
+                      {r.code}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field
+                label="Applicability"
+                changed={ch('applicability')}
+                help="The conditions under which the rule fires for a prospect."
+              >
+                <textarea
+                  className={'fc-area' + (ch('applicability') ? ' edited' : '')}
+                  rows={3}
+                  value={draft.applicability}
+                  readOnly={!editable}
+                  onChange={(e) => set('applicability', e.target.value)}
+                />
+              </Field>
+
+              <Field
+                label="Needed facts about the prospect"
+                help="If any of these are unknown, the engine will not apply the rule; it lists the gap instead of guessing."
+              >
+                <TagChips
+                  tags={draft.inputs_required}
+                  meta={meta}
+                  addPrompt={`Prospect fact (one of: ${meta?.prospect_fields.join(', ') ?? ''})`}
+                  onAdd={(t) => editable && set('inputs_required', [...draft.inputs_required, t])}
+                  onRemove={(t) => editable && set('inputs_required', draft.inputs_required.filter((x) => x !== t))}
+                />
+              </Field>
+
+              {/* ── Lifecycle ─────────────────────────────────── */}
+              <SectionLabel>Lifecycle</SectionLabel>
+
+              <Field
+                label="Movement note"
+                help="A pending change you already know about: a dated application, a bill in passage, an adopted-but-unpublished amendment. Saving it puts the rule on the watch list."
+              >
+                <textarea
+                  className="fc-area"
+                  rows={2}
+                  value={draft.movement_note}
+                  readOnly={!editable}
+                  onChange={(e) => set('movement_note', e.target.value)}
+                />
               </Field>
             </>
           ) : (
             <>
-              {['substance', 'gap_text', 'test_raw', 'rationale_raw', 'anchors_raw', 'why_raw'].
-                filter((k) => draft.kind_fields[k] !== undefined && draft.kind_fields[k] !== null).map((k) => (
-                <Field key={k} label={k.replace(/_raw$/, '').replace('_', ' ')}>
-                  <textarea className="fc-area" rows={5} value={draft.kind_fields[k] ?? ''} readOnly={!editable} onChange={(e) => set('kind_fields', { ...draft.kind_fields, [k]: e.target.value })} />
-                </Field>
-              ))}
+              {Object.keys(KIND_FIELD_LABELS)
+                .filter((k) => draft.kind_fields[k] !== undefined && draft.kind_fields[k] !== null)
+                .map((k) => (
+                  <Field key={k} label={KIND_FIELD_LABELS[k]}>
+                    <textarea
+                      className="fc-area"
+                      rows={5}
+                      value={draft.kind_fields[k] ?? ''}
+                      readOnly={!editable}
+                      onChange={(e) => set('kind_fields', { ...draft.kind_fields, [k]: e.target.value })}
+                    />
+                  </Field>
+                ))}
+              <SectionLabel>Lifecycle</SectionLabel>
             </>
           )}
 
-          <Field label="Change note" help="Why this version exists. Travels with the provenance record (FR-G.2).">
-            <textarea className="fc-area" rows={2} value={draft.change_note} readOnly={!editable} onChange={(e) => set('change_note', e.target.value)} />
+          <Field label="Change note" help="Why this version exists. It travels with the rule's history.">
+            <textarea
+              className="fc-area"
+              rows={2}
+              value={draft.change_note}
+              readOnly={!editable}
+              onChange={(e) => set('change_note', e.target.value)}
+            />
           </Field>
 
-          {provenance && (
+          {newMode && (
+            <>
+              <SectionLabel>Filing</SectionLabel>
+              <Field
+                label="Topic code"
+                help="Two to six letters naming the topic, e.g. CON for contracts, OUT for outsourcing, TPR for third-party risk. The reference allocates itself from the regime, jurisdiction and topic."
+              >
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <input
+                    className="fc-input fc-mono"
+                    style={{ width: 120 }}
+                    value={topic}
+                    maxLength={6}
+                    placeholder="e.g. CON"
+                    onChange={(e) => setTopic(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                  />
+                  <span style={{ font: '500 12px/1 var(--font-mono)', color: draft.rule_id ? 'var(--text-1)' : 'var(--text-4)' }}>
+                    {draft.rule_id ? `→ files as ${draft.rule_id}` : 'reference appears here'}
+                  </span>
+                </div>
+              </Field>
+            </>
+          )}
+
+          {provenance && !newMode && (
             <div className="field" style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 22 }}>
               <div className="field-head">
                 <label>Provenance</label>
@@ -780,7 +1007,9 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
                 </div>
                 <div className="pv">
                   <span className="k">Reviewer</span>
-                  <span className="v" style={{ color: 'var(--text-3)' }}>{provenance.reviewer_name ?? 'Unassigned'}</span>
+                  <span className="v" style={{ color: 'var(--text-3)' }}>
+                    {provenance.reviewer_name ?? 'Unassigned'}
+                  </span>
                 </div>
                 <div className="pv">
                   <span className="k">Created</span>
@@ -792,7 +1021,17 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
                 </div>
               </div>
               {provenance.review_notes && (
-                <div style={{ marginTop: 14, padding: '10px 12px', background: 'var(--warn-50)', border: '1px solid var(--warn-100)', borderRadius: 'var(--r-md)', font: '400 12.5px/1.55 var(--font-sans)', color: 'var(--text-2)' }}>
+                <div
+                  style={{
+                    marginTop: 14,
+                    padding: '10px 12px',
+                    background: 'var(--warn-50)',
+                    border: '1px solid var(--warn-100)',
+                    borderRadius: 'var(--r-md)',
+                    font: '400 12.5px/1.55 var(--font-sans)',
+                    color: 'var(--text-2)',
+                  }}
+                >
                   <span style={{ color: 'var(--warn-text)', fontWeight: 500 }}>Returned with notes · </span>
                   {provenance.review_notes}
                 </div>
@@ -818,11 +1057,11 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
           <Icn name={blocks ? 'alertCircle' : 'checkCircle'} size={16} color={blocks ? 'var(--block)' : 'var(--ok)'} />
           {!canAuthor ? (
             <span>
-              <b>{actor?.role.replace('_', ' ')}</b> cannot author substance (FR-9.7) — switch user top-right
+              Substance is authored and approved by the legal specialists — switch user top-right
             </span>
           ) : newMode ? (
             <span>
-              <b>New rule.</b> Create the draft first; submit for review from the saved draft.
+              <b>New rule.</b> Save the draft first; it goes for review from there.
             </span>
           ) : blocks ? (
             <span>
@@ -838,7 +1077,7 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
           )}
         </span>
         <span className="spacer" />
-        <Button variant="secondary" icon="download" disabled={!editable || saving} onClick={saveDraft}>
+        <Button variant="secondary" icon="download" disabled={!editable || saving || (newMode && !draft.rule_id)} onClick={saveDraft}>
           {newMode ? 'Create draft' : 'Save draft'}
         </Button>
         <Button

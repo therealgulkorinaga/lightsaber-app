@@ -199,7 +199,7 @@ export async function validateDraft(
       findings.push({ level: 'block', code: 'authority_missing', field: 'authority_summary', message: 'Every regulatory rule carries an authority; the grounding guarantee rests on it' });
     }
     if (!d.sources?.length) {
-      findings.push({ level: 'block', code: 'source_missing', field: 'sources', message: 'A regulatory rule with no authority source cannot be submitted (FR-A.6)' });
+      findings.push({ level: 'block', code: 'source_missing', field: 'sources', message: 'A regulatory rule with no authority source cannot be submitted; attach the citation it rests on' });
     }
   }
 
@@ -226,7 +226,7 @@ export async function validateDraft(
       findings.push({ level: 'block', code: 'watch_trigger', field: 'movement_note', message: 'A movement note requires a trigger (date or named event)' });
     }
   } else if (d.movement_note && !opts.armedWatch) {
-    findings.push({ level: 'block', code: 'watch_missing', field: 'movement_note', message: 'A movement note must arm a watch item: supply trigger and re-verify action (FR-A.9)' });
+    findings.push({ level: 'block', code: 'watch_missing', field: 'movement_note', message: 'A movement note must arm a watch item: give it a trigger (a date, or a named event) and a re-verify action' });
   }
 
   return findings;

@@ -36,8 +36,8 @@ export function Watch() {
           intro={
             <span>
               <span className="hl">The maintenance surface.</span> Each watch item ties a regime movement to the rules that depend
-              on it, with a trigger and a re-verify date. Phase 1 arms items from movement notes; triggering, staleness flags and
-              the impact report arrive with Component C (Phase 3).
+              on it, with a trigger and a re-verify date. Today this lists what is being watched; triggering, staleness flags and
+              the impact report arrive in a later phase.
             </span>
           }
         >
@@ -116,7 +116,7 @@ export function Watch() {
                   ))}
                 </div>
                 <div className="imp-sec" style={{ font: '400 11.5px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
-                  Triggering, the impact report and re-authoring tasks ship with Component C in Phase 3 (FR-C.2 to FR-C.6).
+                  Triggering, the impact report and re-authoring tasks ship in a later phase.
                 </div>
               </div>
             )}

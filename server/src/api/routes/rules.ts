@@ -171,7 +171,58 @@ async function insertRuleBlock(client: pg.PoolClient, rule: any, version: any) {
   }
 }
 
+// ID prefixes follow the corpus conventions: EU/UK instruments take their
+// regime's prefix; layered local rules take their jurisdiction's.
+const REGIME_PREFIX: Record<string, string> = {
+  DORA: 'DORA',
+  EU_AI_ACT: 'AIA',
+  GDPR: 'GDPR',
+  FCA: 'FCA',
+  PRA: 'PRA',
+  MiCA: 'MICA',
+};
+const JURISDICTION_PREFIX: Record<string, string> = {
+  IE: 'IE',
+  DE: 'DE',
+  FR: 'FR',
+  NL: 'NL',
+  US: 'US',
+  'US-NY': 'NY',
+  'US-CA': 'CA',
+  'US-TX': 'TX',
+  'US-NYC': 'NYC',
+  UK: 'UK',
+};
+
 export function rulesRoutes(app: FastifyInstance) {
+  // The system allocates rule IDs (FR-A.2); authors supply a topic, not an ID.
+  app.get('/api/rules/suggest-id', async (req, reply) => {
+    const q = req.query as { kind?: string; regime?: string; jurisdiction?: string; topic?: string };
+    const kind = q.kind ?? 'regulatory';
+    let prefix: string;
+    if (kind === 'icp') prefix = q.topic === 'DQ' ? 'ICP-DQ' : 'ICP';
+    else if (kind === 'objection') prefix = 'OBJ';
+    else if (kind === 'messaging') prefix = 'MSG';
+    else {
+      const topic = (q.topic ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!topic || topic.length < 2 || topic.length > 6) {
+        return reply.code(422).send({ error: 'Supply a short topic code (2-6 letters), e.g. CON for contracts, OUT for outsourcing' });
+      }
+      const base =
+        q.regime === 'cross_regime'
+          ? (JURISDICTION_PREFIX[q.jurisdiction ?? ''] ?? 'XRG')
+          : (REGIME_PREFIX[q.regime ?? ''] ?? null);
+      if (!base) return reply.code(422).send({ error: `No prefix convention for regime ${q.regime}` });
+      prefix = base === 'XRG' ? 'XRG' : `${base}-${topic}`;
+    }
+    const { rows } = await pool.query(
+      `SELECT rule_id FROM shared.rule WHERE rule_id ~ ('^' || $1 || '-[0-9]{3}$')`,
+      [prefix],
+    );
+    const next = rows.reduce((mx, r) => Math.max(mx, Number(r.rule_id.slice(-3))), 0) + 1;
+    return { rule_id: `${prefix}-${String(next).padStart(3, '0')}` };
+  });
+
   // Registry data for the editor.
   app.get('/api/meta', async () => {
     const [jur, regimes, users, policy] = await Promise.all([
@@ -305,7 +356,7 @@ export function rulesRoutes(app: FastifyInstance) {
     return withTx(async (client) => {
       const rule = await getRule(client, ruleId);
       if (!rule) return reply.code(404).send({ error: `No rule ${ruleId}` });
-      if (rule.status === 'retired') return reply.code(422).send({ error: `Retired is terminal for ${ruleId}; author a replacement under a new ID (5.1)` });
+      if (rule.status === 'retired') return reply.code(422).send({ error: `Retired is terminal for ${ruleId}; author a replacement under a new ID` });
       const open = await openVersion(client, ruleId);
       if (open) return reply.code(409).send({ error: `An open version already exists for ${ruleId}`, version: open });
 
@@ -349,7 +400,7 @@ export function rulesRoutes(app: FastifyInstance) {
       const open = await openVersion(client, ruleId);
       if (!open) return reply.code(409).send({ error: 'No open version; create one first' });
       if (open.review_state === 'in_review') return reply.code(409).send({ error: 'Version is in review; return it before editing' });
-      if (open.author_id !== req.actor.id) return reply.code(403).send({ error: 'Only the author edits their draft (FR-A.8)' });
+      if (open.author_id !== req.actor.id) return reply.code(403).send({ error: 'Only the author edits their draft' });
 
       d.kind = rule.kind;
       const cols = draftColumns(d);
@@ -449,7 +500,7 @@ export function rulesRoutes(app: FastifyInstance) {
         const normalised = (v: any) =>
           renderRuleBlock(versionRowToRender(rule, { ...v, semver_at_author: 'X', version_annotation: '' }));
         if (prev && normalised(prev) === normalised(open)) {
-          return reply.code(422).send({ error: 'No change against the current active version; nothing to review (FR-A.7)' });
+          return reply.code(422).send({ error: 'No change against the current active version; nothing to review' });
         }
       }
 
@@ -469,7 +520,7 @@ export function rulesRoutes(app: FastifyInstance) {
   // Approve (FR-B.2/B.3): a separate reviewer; recorded against the version.
   app.post('/api/rules/:ruleId/approve', async (req, reply) => {
     if (!canApproveSubstance(req.actor)) {
-      return reply.code(403).send({ error: 'Analysts and tenant admins cannot approve substance (FR-9.7)' });
+      return reply.code(403).send({ error: 'Substance approval needs a qualified reviewer; analysts and tenant admins cannot approve' });
     }
     const { ruleId } = req.params as { ruleId: string };
     return withTx(async (client) => {
@@ -478,7 +529,7 @@ export function rulesRoutes(app: FastifyInstance) {
       const open = await openVersion(client, ruleId);
       if (!open || open.review_state !== 'in_review') return reply.code(409).send({ error: 'No version in review' });
       if (open.author_id === req.actor.id) {
-        return reply.code(403).send({ error: 'The author of a version cannot be its reviewer (FR-B.1)' });
+        return reply.code(403).send({ error: 'The author of a version cannot be its reviewer; substance takes a second pair of eyes' });
       }
       // Approval binds to the exact content reviewed (FR-B.4).
       const hash = contentHash(versionRowToRender(rule, open));
@@ -506,10 +557,10 @@ export function rulesRoutes(app: FastifyInstance) {
 
   // Return with notes (FR-B.2).
   app.post('/api/rules/:ruleId/return', async (req, reply) => {
-    if (!canApproveSubstance(req.actor)) return reply.code(403).send({ error: 'Reviewers only (FR-9.7)' });
+    if (!canApproveSubstance(req.actor)) return reply.code(403).send({ error: 'Reviewers only' });
     const { ruleId } = req.params as { ruleId: string };
     const { notes } = req.body as { notes: string };
-    if (!notes?.trim()) return reply.code(422).send({ error: 'A return carries reviewer notes (FR-B.2)' });
+    if (!notes?.trim()) return reply.code(422).send({ error: 'A return carries notes for the author' });
     return withTx(async (client) => {
       const open = await openVersion(client, ruleId);
       if (!open || open.review_state !== 'in_review') return reply.code(409).send({ error: 'No version in review' });
@@ -533,7 +584,7 @@ export function rulesRoutes(app: FastifyInstance) {
       const rule = await getRule(client, ruleId);
       if (!rule) return reply.code(404).send({ error: `No rule ${ruleId}` });
       if (!['active', 'stale', 'approved'].includes(rule.status)) {
-        return reply.code(422).send({ error: `Only an active or stale rule retires (5.1); ${ruleId} is ${rule.status}` });
+        return reply.code(422).send({ error: `Only an active or stale rule retires; ${ruleId} is ${rule.status}` });
       }
       await client.query(`UPDATE shared.rule SET status='retired' WHERE rule_id=$1`, [ruleId]);
       await client.query(`DELETE FROM shared.seam_block WHERE rule_id = $1`, [ruleId]);
