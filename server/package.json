@@ -6,7 +6,7 @@
     "dev": "node --watch src/index.ts",
     "start": "node src/index.ts",
     "migrate": "node src/db/migrate.ts",
-    "seed": "node src/seed/cli.ts",
+    "seed": "node src/seed/seed.ts",
     "export": "node src/export/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest"
