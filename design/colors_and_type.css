@@ -1,0 +1,234 @@
+/* ============================================================
+   Lightsaber — Colors & Type
+   ============================================================
+   Two systems, one brand:
+   - Court Reporter (light)  → every product surface a buyer sees
+   - Saber           (dark)  → off-stage: decks, marketing, stage
+
+   Type stacks (Google Fonts; self-host in production):
+     Court Reporter — Newsreader / Inter Tight / JetBrains Mono
+     Saber          — DM Serif Display / DM Sans / JetBrains Mono
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600;6..72,700&family=Inter+Tight:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ============================================================
+   ROOT — Court Reporter is the default surface.
+   Saber tokens are prefixed `--saber-*` and applied on
+   `.saber` / `body[data-system="saber"]` containers.
+   ============================================================ */
+:root {
+  /* ── Slate scale ─────────────────────────────────── */
+  --slate-50:  #F8FAFC;
+  --slate-100: #F1F5F9;
+  --slate-200: #E2E8F0;
+  --slate-300: #CBD5E1;
+  --slate-400: #94A3B8;
+  --slate-500: #64748B;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1E293B;
+  --slate-900: #0F172A;
+  --white:     #FFFFFF;
+
+  /* ── Brand · Court Reporter ─────────────────────── */
+  --brand:        #1E3A5F;
+  --brand-700:    #18304E;
+  --brand-600:    #234975;
+  --brand-100:    #E6ECF3;
+  --brand-50:     #F2F5F9;
+
+  --accent:       #C97B3C;
+  --accent-700:   #A8642F;
+  --accent-100:   #F8EADB;
+  --accent-50:    #FBF4EA;
+
+  /* ── Semantic flags · Court Reporter ────────────── */
+  --warn:      #F59E0B;
+  --warn-text: #B7791F;
+  --warn-100:  #FEF3C7;
+  --warn-50:   #FFFBEB;
+  --block:     #EF4444;
+  --block-text:#B91C1C;
+  --block-100: #FEE2E2;
+  --block-50:  #FEF2F2;
+  --info:      #94A3B8;
+  --info-100:  #F1F5F9;
+  --ok:        #059669;
+  --ok-100:    #D1FAE5;
+
+  /* ── Surfaces · Court Reporter ──────────────────── */
+  --bg:              var(--slate-50);
+  --surface:         var(--white);
+  --border:          var(--slate-200);
+  --border-strong:   var(--slate-300);
+  --border-subtle:   var(--slate-100);
+
+  /* ── Text · Court Reporter ──────────────────────── */
+  --text-1: var(--slate-900);   /* primary  · headings */
+  --text-2: var(--slate-600);   /* body */
+  --text-3: var(--slate-500);   /* meta */
+  --text-4: var(--slate-400);   /* tertiary · caption */
+
+  /* ── Type families ──────────────────────────────── */
+  --font-sans:        'Inter Tight', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-display:     'Newsreader', Georgia, serif;
+  --font-mono:        'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-saber-display: 'DM Serif Display', Georgia, serif;
+  --font-saber-body:    'DM Sans', system-ui, -apple-system, sans-serif;
+
+  /* ── Spacing ────────────────────────────────────── */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  12px;
+  --s-4:  16px;
+  --s-5:  20px;
+  --s-6:  24px;
+  --s-8:  32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* ── Radius — tight; lawyerly ───────────────────── */
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
+  --r-xl: 8px;
+
+  /* ── Shadow — minimal ───────────────────────────── */
+  --shadow-1:   0 1px 0 rgba(15, 23, 42, 0.04);
+  --shadow-2:   0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(15, 23, 42, 0.04);
+  --shadow-pop: 0 8px 24px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.06);
+
+  /* ── Saber (dark) tokens ────────────────────────── */
+  --saber-bg-base:       #0b0b0e;
+  --saber-bg-surface:    #111116;
+  --saber-bg-elevated:   #18181f;
+  --saber-bg-lift:       #1f1f29;
+  --saber-border:        #2a2a35;
+  --saber-border-subtle: #1e1e28;
+  --saber-border-hover:  #3d3d50;
+
+  --saber:           #3b9eff;
+  --saber-dim:       #1e5fd6;
+  --saber-darker:    #143f8e;
+  --saber-muted:     #0d1e3d;
+  --saber-text:      #9fc4ff;
+  --saber-glow:      0 0 10px rgba(59, 158, 255, 0.55);
+  --saber-glow-lg:   0 0 24px rgba(59, 158, 255, 0.45), 0 0 6px rgba(59, 158, 255, 0.7);
+
+  --saber-warn: #f5c063;
+  --saber-pass: #6ee4a8;
+  --saber-fail: #f08088;
+
+  --saber-fg-1: #eeece8;
+  --saber-fg-2: #9997a0;
+  --saber-fg-3: #5a5862;
+  --saber-fg-4: #3a3a44;
+}
+
+/* ============================================================
+   BASE — applied to body in both systems.
+   ============================================================ */
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
+  font-feature-settings: "ss03", "cv11";  /* Inter Tight: single-storey a + tabular nums lookup */
+  color: var(--text-2);
+  background: var(--bg);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body[data-system="saber"],
+.saber-root {
+  font-family: var(--font-saber-body);
+  background: #000;
+  color: var(--saber-fg-1);
+}
+
+/* ============================================================
+   SEMANTIC TYPE ROLES — Court Reporter
+   ============================================================ */
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-optical-sizing: auto;
+  font-size: 22px;
+  color: var(--brand);
+  letter-spacing: -0.018em;
+  line-height: 1;
+}
+.wordmark-stop { color: var(--accent); }
+
+.t-display-headline {
+  font: 600 40px/1.05 var(--font-display);
+  color: var(--brand);
+  letter-spacing: -0.02em;
+  font-optical-sizing: auto;
+}
+
+.t-h1 {
+  font: 600 44px/1.08 var(--font-display);
+  color: var(--text-1);
+  letter-spacing: -0.018em;
+  font-optical-sizing: auto;
+}
+.t-h2 {
+  font: 600 28px/1.2 var(--font-sans);
+  color: var(--text-1);
+  letter-spacing: -0.018em;
+}
+.t-h3 {
+  font: 600 18px/1.3 var(--font-sans);
+  color: var(--text-1);
+  letter-spacing: -0.008em;
+}
+.t-sub {
+  font: 600 12px/1.3 var(--font-sans);
+  color: var(--text-2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.t-body    { font: 400 14px/1.65 var(--font-sans); color: var(--text-2); }
+.t-body-em { font: 500 14px/1.65 var(--font-sans); color: var(--text-1); }
+.t-lede    { font: 400 17px/1.55 var(--font-sans); color: var(--text-2); letter-spacing: -0.005em; max-width: 720px; }
+.t-meta    { font: 400 12px/1.4  var(--font-sans); color: var(--text-3); }
+.t-mono    { font: 400 13px/1.4  var(--font-mono); color: var(--text-2); }
+.t-mono-em { font: 500 13px/1.4  var(--font-mono); color: var(--text-1); }
+.t-mono-sm { font: 400 11px/1.4  var(--font-mono); color: var(--text-3); letter-spacing: 0.02em; }
+.t-tabular { font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   SEMANTIC TYPE ROLES — Saber
+   ============================================================ */
+
+.saber-wordmark {
+  font-family: var(--font-saber-display);
+  font-weight: 400;
+  font-size: 22px;
+  color: var(--saber-fg-1);
+  letter-spacing: -0.018em;
+}
+.saber-wordmark .stop { color: var(--saber); text-shadow: var(--saber-glow); }
+
+.s-display {
+  font-family: var(--font-saber-display);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+  color: var(--saber-fg-1);
+}
+.s-display em {
+  font-style: italic;
+  color: var(--saber-text);
+}
+
+.s-subline      { font: 400 16px/1.45 var(--font-saber-body); color: var(--saber-fg-2); max-width: 760px; }
+.s-mono-eyebrow { font: 400 11px/1 var(--font-mono); letter-spacing: 0.18em; text-transform: uppercase; color: var(--saber-text); }
+.s-mono-label   { font: 400 11px/1 var(--font-mono); letter-spacing: 0.1em;  text-transform: uppercase; color: var(--saber-fg-3); }
+.s-mono-tag     { font: 400 11px/1 var(--font-mono); letter-spacing: 0.06em; color: var(--saber-fg-2); }

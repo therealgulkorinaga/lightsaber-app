@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Loom — Seam Authoring</title>
+<link rel="stylesheet" href="colors_and_type.css" />
+<link rel="stylesheet" href="design-system.css" />
+<link rel="stylesheet" href="app.css" />
+<link rel="stylesheet" href="screens.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="icons.js"></script>
+<script src="data.js"></script>
+<script src="data2.js"></script>
+</head>
+<body data-screen-label="Loom · Seam Authoring">
+<div id="root"></div>
+
+<script type="text/babel" src="Primitives.jsx"></script>
+<script type="text/babel" src="Chrome.jsx"></script>
+<script type="text/babel" src="Authoring.jsx"></script>
+<script type="text/babel" src="Watch.jsx"></script>
+<script type="text/babel" src="Coverage.jsx"></script>
+<script type="text/babel" src="Releases.jsx"></script>
+<script type="text/babel" src="Tenants.jsx"></script>
+
+<script type="text/babel">
+const SCREENS = {
+  authoring: () => <Authoring />,
+  review:    () => <ReviewQueue />,
+  watch:     () => <RegimeWatch />,
+  coverage:  () => <Coverage />,
+  releases:  () => <Releases />,
+  tenants:   () => <Tenants />,
+};
+const LABEL = {
+  authoring: 'Rule Authoring Workspace', review: 'Review queue', watch: 'Regime Watch',
+  coverage: 'Coverage & Gap Ledger', releases: 'Evaluation & Release Gate', tenants: 'Tenant Fleet',
+};
+
+// Review queue — light, consistent with the rest; submitted rule lands here.
+function ReviewQueue() {
+  const rows = [
+    { id: 'DORA-CON-003', title: 'Mandatory contractual provisions', regime: 'DORA', author: 'R. Hale', v: 'v1.1', age: '2 min ago', state: 'in_review', you: true },
+    { id: 'NY-AI-004', title: 'NY state AI in finance', regime: 'NYDFS', author: 'R. Hale', v: 'v1.0', age: '1 day ago', state: 'in_review' },
+    { id: 'CA-ADMT-002', title: 'California automated-decision tech', regime: 'CA', author: 'A. Okafor', v: 'v1.0', age: '2 days ago', state: 'approved' },
+    { id: 'TX-BIO-003', title: 'Texas biometric (CUBI)', regime: 'TX', author: 'A. Okafor', v: 'v1.0', age: '3 days ago', state: 'approved' },
+  ];
+  return (
+    <div className="scr-scroll"><div className="scr scr-wide">
+      <ScreenHead title="Review queue"
+        intro={<span><span className="hl">Rules submitted for review.</span> A reviewer reads each one, then approves it into the next release candidate. Nothing reaches a tenant from here directly.</span>}>
+        <Stat n={rows.filter(r => r.state === 'in_review').length} label="Awaiting review" tone="accent" />
+        <Stat n={rows.filter(r => r.state === 'approved').length} label="Approved for 1.2.0" tone="ok" />
+      </ScreenHead>
+      <div className="card">
+        <CardHead title="Submitted rules" sub="Newest first" />
+        {rows.map(r => (
+          <div className="imp-row" key={r.id} style={{ padding: '14px 20px' }}>
+            <Rid>{r.id}</Rid>
+            <div className="grow">
+              <div className="r-title">{r.title} {r.you && <span style={{ font: '400 11px/1 var(--font-sans)', color: 'var(--accent-700)', marginLeft: 6 }}>· your submission</span>}</div>
+              <div className="r-sub">{r.regime} · {r.v} · {r.author} · {r.age}</div>
+            </div>
+            <Status state={r.state} />
+            <Button variant={r.state === 'in_review' ? 'primary' : 'secondary'} size="sm">{r.state === 'in_review' ? 'Review' : 'View'}</Button>
+          </div>
+        ))}
+      </div>
+    </div></div>
+  );
+}
+
+function App() {
+  const [route, setRoute] = React.useState('authoring');
+  window.__goto = setRoute;
+  React.useEffect(() => {
+    document.body.setAttribute('data-screen-label', 'Loom · ' + LABEL[route]);
+  }, [route]);
+  return (
+    <div className="loom">
+      <Topbar />
+      <Rail route={route} onRoute={setRoute} />
+      <div className="lm-main">
+        {(SCREENS[route] || SCREENS.authoring)()}
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
