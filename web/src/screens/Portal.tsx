@@ -80,7 +80,7 @@ export function Portal({ actor, onMutate }: { actor: User | null; onMutate: () =
         )}
 
         <div className="cov-stack">
-          <div className="card">
+          <div className="card" data-tour="portal-claims">
             <CardHead title="Your approved claims" sub="The only source the engine may assert your product facts from" />
             {data.claims.map((c: any) => (
               <div className="imp-row" key={`${c.claim_id}:${c.version}`} style={{ padding: '12px 20px' }}>
@@ -100,7 +100,7 @@ export function Portal({ actor, onMutate }: { actor: User | null; onMutate: () =
             )}
           </div>
 
-          <div className="card">
+          <div className="card" data-tour="portal-defensibility">
             <CardHead
               title="Defensibility"
               sub="Reconstruct the exact rule text and authority an artifact rested on, as of the version it cited"
@@ -134,7 +134,7 @@ export function Portal({ actor, onMutate }: { actor: User | null; onMutate: () =
             )}
           </div>
 
-          <div className="card">
+          <div className="card" data-tour="portal-gaps">
             <CardHead title="What your deployment abstained on" sub="Each abstention is a candidate for new coverage; the practice triages these into the authoring backlog" />
             {data.gaps.map((g: any) => (
               <div className="imp-row" key={g.id} style={{ padding: '12px 20px' }}>

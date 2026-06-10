@@ -478,7 +478,7 @@ function AssistPanel({
   };
 
   return (
-    <div className="changes" style={{ marginTop: 14 }}>
+    <div className="changes" data-tour="assist" style={{ marginTop: 14 }}>
       <div className="changes-head">
         <h3>Assistant</h3>
         <span className="vs">drafts and flags; never approves</span>
@@ -754,6 +754,7 @@ export function Authoring({
           <span className="sep">/</span>
           <select
             className="fc-input"
+            data-tour="rule-picker"
             style={{ width: 'auto', padding: '4px 8px', font: '500 12px/1 var(--font-mono)' }}
             value={newMode ? '__new__' : selected}
             onChange={(e) => {
@@ -846,7 +847,7 @@ export function Authoring({
 
       <div className="editor">
         {/* LEFT — substance first, mechanics last */}
-        <div className="pane pane-form">
+        <div className="pane pane-form" data-tour="form">
           <div className="form-intro">
             <div>
               <h3>{newMode ? 'New rule' : 'Edit rule'}</h3>
@@ -1175,7 +1176,9 @@ export function Authoring({
             <h3>Review</h3>
             <p>Runs as you type. Clear the flags, then submit.</p>
           </div>
-          <ReviewPanel items={lint} serverFindings={serverFindings} onResolve={resolve} onOverride={override} />
+          <div data-tour="review-panel">
+            <ReviewPanel items={lint} serverFindings={serverFindings} onResolve={resolve} onOverride={override} />
+          </div>
           <ChangesPanel draft={draft} baseline={baseline} />
           {canAuthor && (
             <AssistPanel
@@ -1191,7 +1194,7 @@ export function Authoring({
       </div>
 
       {/* action bar */}
-      <div className="ws-actions">
+      <div className="ws-actions" data-tour="actions">
         <span className="gate">
           <Icn name={blocks ? 'alertCircle' : 'checkCircle'} size={16} color={blocks ? 'var(--block)' : 'var(--ok)'} />
           {!canAuthor ? (

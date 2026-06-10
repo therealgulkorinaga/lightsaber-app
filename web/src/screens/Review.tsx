@@ -85,7 +85,7 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
           </div>
         )}
 
-        <div className="card">
+        <div className="card" data-tour="queue-card">
           <CardHead title="Submitted rules" sub="Newest first" />
           {queue.length === 0 && (
             <div style={{ padding: '18px 20px', font: '400 13px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>

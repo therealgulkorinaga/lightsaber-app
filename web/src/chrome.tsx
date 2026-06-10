@@ -101,7 +101,7 @@ export function useChromeData(refreshKey: number): ChromeData {
   return data;
 }
 
-export function Topbar({ data, onUserChange, onSearch }: { data: ChromeData; onUserChange: () => void; onSearch: () => void }) {
+export function Topbar({ data, onUserChange, onSearch, onTour }: { data: ChromeData; onUserChange: () => void; onSearch: () => void; onTour: () => void }) {
   return (
     <>
       <div className="lm-brand">
@@ -111,7 +111,7 @@ export function Topbar({ data, onUserChange, onSearch }: { data: ChromeData; onU
         <span className="mark-sub">Backoffice</span>
       </div>
       <div className="lm-top">
-        <div className="lm-search" onClick={onSearch} style={{ cursor: 'pointer' }}>
+        <div className="lm-search" data-tour="search" onClick={onSearch} style={{ cursor: 'pointer' }}>
           <Icn name="search" size={14} />
           <span>Search rules, regimes, authorities…</span>
           <span style={{ display: 'inline-flex', gap: 3 }}>
@@ -120,13 +120,23 @@ export function Topbar({ data, onUserChange, onSearch }: { data: ChromeData; onU
           </span>
         </div>
         <span className="spacer" />
-        <span className="lm-vpill">
+        <span className="lm-vpill" data-tour="seam-pill">
           <span className="led" /> seam {data.seamVersion}
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text-3)' }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            title="Take the guided tour"
+            onClick={onTour}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          >
+            <Icn name="info" size={15} />
+            Guide
+          </button>
           <Icn name="bell" size={17} />
           <select
             className="fc-input"
+            data-tour="user-switcher"
             style={{ width: 'auto', padding: '5px 8px', font: '500 12px/1 var(--font-sans)' }}
             value={data.actor?.id ?? ''}
             onChange={(e) => {

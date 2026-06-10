@@ -210,7 +210,7 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
         </div>
 
         <div className="md">
-          <div>
+          <div data-tour="fleet">
             <div className="md-list-h">Adopter tenants</div>
             <div className="md-list">
               {fleet.map((f) => (
@@ -248,7 +248,7 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
             </div>
           </div>
 
-          <div>
+          <div data-tour="tenant-detail">
             <div className="md-list-h">{t?.tenant?.name ?? 'Detail'}</div>
             {t && (
               <>

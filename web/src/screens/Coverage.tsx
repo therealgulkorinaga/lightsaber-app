@@ -87,7 +87,7 @@ export function Coverage({ actor, onMutate }: { actor: User | null; onMutate: ()
         )}
 
         <div className="cov-stack">
-          <div className="card">
+          <div className="card" data-tour="matrix">
             <CardHead title="Coverage matrix" sub="Depth (rule count), freshness and gap pressure per jurisdiction × regime" />
             {matrix && (
               <div className="matrix-wrap">
@@ -136,7 +136,7 @@ export function Coverage({ actor, onMutate }: { actor: User | null; onMutate: ()
             </div>
           </div>
 
-          <div className="card">
+          <div className="card" data-tour="backlog">
             <CardHead title="Gap backlog" sub="Fed from live-deal abstentions through the bounded ingestion schema; ranked by frequency × deal-cost" />
             {gaps.map((g) => (
               <div className="gap-row" key={g.id}>
@@ -185,7 +185,7 @@ export function Coverage({ actor, onMutate }: { actor: User | null; onMutate: ()
             )}
           </div>
 
-          <div className="card">
+          <div className="card" data-tour="critic">
             <CardHead
               title="Consistency & coverage critic"
               sub="Flags only; it authors nothing. Deterministic checks always run; semantic checks need the assist model."

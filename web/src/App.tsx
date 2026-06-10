@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Topbar, Rail, useChromeData } from './chrome.tsx';
 import { Search } from './Search.tsx';
+import { Tour, tourFor, tourSeen } from './Tour.tsx';
 import { Authoring } from './screens/Authoring.tsx';
 import { Review } from './screens/Review.tsx';
 import { Releases } from './screens/Releases.tsx';
@@ -14,6 +15,7 @@ export function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [jumpRule, setJumpRule] = useState<string | null>(null);
+  const [tourStep, setTourStep] = useState<number | null>(null);
   const chrome = useChromeData(refreshKey);
   const bump = () => setRefreshKey((k) => k + 1);
 
@@ -21,6 +23,11 @@ export function App() {
   useEffect(() => {
     if (chrome.actor?.role === 'tenant_admin') setRoute('portal');
     else if (route === 'portal') setRoute('authoring');
+  }, [chrome.actor?.id]);
+
+  // First visit: offer the guided walk of the whole journey, once.
+  useEffect(() => {
+    if (chrome.actor && !tourSeen()) setTourStep(0);
   }, [chrome.actor?.id]);
 
   useEffect(() => {
@@ -63,7 +70,7 @@ export function App() {
 
   return (
     <div className="loom">
-      <Topbar data={chrome} onUserChange={bump} onSearch={() => setSearchOpen(true)} />
+      <Topbar data={chrome} onUserChange={bump} onSearch={() => setSearchOpen(true)} onTour={() => setTourStep(0)} />
       <Rail route={route} onRoute={setRoute} data={chrome} />
       <div className="lm-main">
         {chrome.actor ? (
@@ -87,6 +94,15 @@ export function App() {
           setRoute('authoring');
         }}
       />
+      {tourStep != null && chrome.actor && (
+        <Tour
+          steps={tourFor(chrome.actor)}
+          step={tourStep}
+          onStep={setTourStep}
+          onClose={() => setTourStep(null)}
+          setRoute={setRoute}
+        />
+      )}
     </div>
   );
 }

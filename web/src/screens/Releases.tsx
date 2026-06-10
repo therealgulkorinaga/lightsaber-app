@@ -181,7 +181,7 @@ export function Releases({ actor, onMutate }: { actor: User | null; onMutate: ()
 
         {release && (
           <>
-            <div className={'publish-bar ' + (release.status === 'published' || release.status === 'eval_passed' ? 'ok' : 'block')}>
+            <div className={'publish-bar ' + (release.status === 'published' || release.status === 'eval_passed' ? 'ok' : 'block')} data-tour="publish-bar">
               <Icn
                 name={release.status === 'published' || release.status === 'eval_passed' ? 'checkCircle' : 'alertCircle'}
                 size={22}
@@ -229,7 +229,7 @@ export function Releases({ actor, onMutate }: { actor: User | null; onMutate: ()
             </div>
 
             <div className="rel-grid">
-              <div>
+              <div data-tour="gate-checks">
                 <div className="md-list-h">Gate checks</div>
                 {(checks ?? []).map((c: any) => (
                   <GateCheck key={c.id} check={c} open={!!open[c.id]} onToggle={() => setOpen((o) => ({ ...o, [c.id]: !o[c.id] }))} />
@@ -240,7 +240,7 @@ export function Releases({ actor, onMutate }: { actor: User | null; onMutate: ()
                   </div>
                 )}
               </div>
-              <div>
+              <div data-tour="changelog">
                 <div className="md-list-h">Release contents</div>
                 <Changelog release={release} />
               </div>

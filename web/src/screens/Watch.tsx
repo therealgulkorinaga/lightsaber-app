@@ -93,7 +93,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
         </div>
 
         <div className="md">
-          <div>
+          <div data-tour="watch-list">
             <div className="md-list-h">Watch list</div>
             <div className="md-list">
               {items.map((w) => (
@@ -116,7 +116,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
             </div>
           </div>
 
-          <div>
+          <div data-tour="watch-detail">
             <div className="md-list-h">{impact ? 'Impact report' : 'Detail'}</div>
             {item && !impact && (
               <div className="card">
