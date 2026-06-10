@@ -9,7 +9,8 @@
     "seed": "node src/seed/seed.ts",
     "export": "node src/export/cli.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "demo": "node src/seed/demo.ts"
   },
   "dependencies": {
     "@lightsaber/voice-lint": "*",

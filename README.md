@@ -58,6 +58,27 @@ npm run dev:server      # API on :4000
 npm run dev:web         # UI on :5173 (proxies /api)
 ```
 
+For a populated walkthrough, layer the demo data on top:
+
+```sh
+npm run db:reset-demo   # canonical seed, then the showcase driven through the real API
+```
+
+The demo leaves every surface live: four releases including one the gate
+genuinely failed (the shipped eval-2 defect); three tenants in distinct states
+(Meridian Pay pinned one release back with an upgrade diff waiting and a stale
+rule in its bundle, Apex Lending upgraded with a claim in review, Volta Insure
+provisioned but undeployed); claims across all four categories including one
+aged stale; gaps in every triage state ranked by frequency × cost; the watch
+list showing a resolved loop (IE-AI-006), a mid-loop re-authoring (US-AI-009)
+and an overdue re-verify (AIA-TML-007); all three billing lines; audit pulls
+feeding the impact reports; critic findings with one reasoned dismissal; an
+AI-assisted rule with verified source ticks; and a rule plus a claim sitting
+in the review queue. It prints the live deploy keys so you can POST real gap
+events. Nothing in it bypasses an invariant: it drives the same API the UI
+uses, so two-person review, the gate, RLS and the source-tick controls all
+held while it ran. Tests never use it.
+
 Seeding asserts that the regenerated bundle is byte-identical with `/skill`
 before committing anything; it prints the bundle checksum.
 

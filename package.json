@@ -16,7 +16,9 @@
     "db:reset": "npm run db:drop && npm run db:create && npm run db:migrate && npm run db:seed",
     "dev:server": "npm run -w server dev",
     "dev:web": "npm run -w web dev",
-    "test": "npm run -w server test"
+    "test": "npm run -w server test",
+    "db:demo": "npm run -w server demo",
+    "db:reset-demo": "npm run db:reset && npm run db:demo"
   },
   "engines": {
     "node": ">=20"
