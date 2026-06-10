@@ -57,7 +57,17 @@ export function App() {
     <div className="loom">
       <Topbar data={chrome} onUserChange={bump} />
       <Rail route={route} onRoute={setRoute} data={chrome} />
-      <div className="lm-main">{screen()}</div>
+      {/* Screens make authenticated calls; hold them until the dev
+          user-switcher has resolved an identity, or the first load 401s. */}
+      <div className="lm-main">
+        {chrome.actor ? (
+          screen()
+        ) : (
+          <div style={{ padding: 28, font: '400 13px/1.6 var(--font-sans)', color: 'var(--text-3)' }}>
+            Signing in…
+          </div>
+        )}
+      </div>
     </div>
   );
 }
