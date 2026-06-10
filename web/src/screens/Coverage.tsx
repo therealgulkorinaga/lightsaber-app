@@ -49,7 +49,7 @@ export function Coverage({ actor, onMutate }: { actor: User | null; onMutate: ()
     try {
       const r = await post('/api/assist/critic');
       await load();
-      if (!r.semantic_ran) setError('Critic ran its deterministic checks; semantic checks need the assist model configured.');
+      if (!r.semantic_ran) setError('The structural checks ran; the judgement-based ones need the assistant configured.');
     } catch (e) {
       setError((e as Error).message);
     }
@@ -62,19 +62,17 @@ export function Coverage({ actor, onMutate }: { actor: User | null; onMutate: ()
     <div className="scr-scroll">
       <div className="scr scr-wide">
         <ScreenHead
-          title="Coverage & Gap Ledger"
+          title="Coverage"
           intro={
             <span>
-              <span className="hl">Where the seam is deep, where it is thin, and what it is costing.</span> The matrix reads
-              depth and freshness per jurisdiction and regime; the backlog ranks what live deals are abstaining on; the critic
-              flags inconsistencies and never authors a word.
+              <span className="hl">Where the rulebook is strong, where it is thin, and what the thin spots cost.</span> The map shows how many rules cover each place and regulation; the backlog ranks the questions live deals could not answer; the checker flags inconsistencies and never writes a word itself.
             </span>
           }
         >
           <Stat n={matrix ? matrix.rows.reduce((a: number, r: any) => a + r.cells.reduce((b: number, c: any) => b + (c.depth ?? 0), 0), 0) : '—'} label="Rules mapped" tone="brand" />
-          <Stat n={open.length} label="Open gaps" tone="accent" />
-          <Stat n={`£${atRisk}k`} label="Deal-value at risk" tone="block" />
-          <Stat n={findings.length} label="Critic flags open" tone="warn" />
+          <Stat n={open.length} label="Unanswered questions" tone="accent" />
+          <Stat n={`£${atRisk}k`} label="Deal value at risk" tone="block" />
+          <Stat n={findings.length} label="Checker flags open" tone="warn" />
         </ScreenHead>
 
         {error && (
@@ -88,17 +86,17 @@ export function Coverage({ actor, onMutate }: { actor: User | null; onMutate: ()
 
         <div className="cov-stack">
           <div className="card" data-tour="matrix">
-            <CardHead title="Coverage matrix" sub="Depth (rule count), freshness and gap pressure per jurisdiction × regime" />
+            <CardHead title="Coverage map" sub="How many rules cover each place and regulation, how fresh they are, and where questions are piling up" />
             {matrix && (
               <div className="matrix-wrap">
                 <table className="matrix">
                   <thead>
                     <tr>
-                      <th className="rowhdr">Jurisdiction</th>
+                      <th className="rowhdr">Place</th>
                       {matrix.regimes.map((r: string) => (
                         <th key={r}>{r}</th>
                       ))}
-                      <th>open gaps</th>
+                      <th>open questions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -132,12 +130,12 @@ export function Coverage({ actor, onMutate }: { actor: User | null; onMutate: ()
               <span className="lg"><span className="sw" style={{ background: 'var(--brand-50)' }} />1–2 rules</span>
               <span className="lg"><span className="sw" style={{ background: 'var(--brand-100)' }} />3–5</span>
               <span className="lg"><span className="sw" style={{ background: '#D7E1EE' }} />6+</span>
-              <span className="lg" style={{ color: 'var(--text-4)' }}>— outside the regime's footprint</span>
+              <span className="lg" style={{ color: 'var(--text-4)' }}>— that regulation does not apply there</span>
             </div>
           </div>
 
           <div className="card" data-tour="backlog">
-            <CardHead title="Gap backlog" sub="Fed from live-deal abstentions through the bounded ingestion schema; ranked by frequency × deal-cost" />
+            <CardHead title="Unanswered questions" sub="Logged automatically whenever a client's sales engine has to say 'not covered' in a live deal. Ranked by how often it comes up times what it puts at risk." />
             {gaps.map((g) => (
               <div className="gap-row" key={g.id}>
                 <span className="gap-rank">{g.rank || '·'}</span>
@@ -163,16 +161,16 @@ export function Coverage({ actor, onMutate }: { actor: User | null; onMutate: ()
                   {canTriage && g.triage_status === 'untriaged' && (
                     <>
                       <Button size="sm" variant="secondary" onClick={() => triage(g.id, { triage_status: 'backlog' })}>
-                        Backlog
+                        Worth covering
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => { const reason = prompt('Rejection reason:'); if (reason) triage(g.id, { triage_status: 'rejected', triage_reason: reason }); }}>
+                      <Button size="sm" variant="ghost" onClick={() => { const reason = prompt('Why are we not covering this? The reason is kept:'); if (reason) triage(g.id, { triage_status: 'rejected', triage_reason: reason }); }}>
                         Reject
                       </Button>
                     </>
                   )}
                   {canTriage && g.triage_status === 'backlog' && (
-                    <Button size="sm" variant="ghost" onClick={() => { const cost = prompt('Practice cost estimate (£k):'); if (cost) triage(g.id, { cost_estimated_gbp: Number(cost) }); }}>
-                      Estimate
+                    <Button size="sm" variant="ghost" onClick={() => { const cost = prompt('Your estimate of the deal value at risk (£k):'); if (cost) triage(g.id, { cost_estimated_gbp: Number(cost) }); }}>
+                      Set value
                     </Button>
                   )}
                 </div>
@@ -180,16 +178,16 @@ export function Coverage({ actor, onMutate }: { actor: User | null; onMutate: ()
             ))}
             {!gaps.length && (
               <div style={{ padding: '16px 20px', font: '400 13px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
-                No gaps logged. Deployed skills write here through their deployment key when they abstain in live deals.
+                Nothing logged. When a client's sales engine cannot answer something in a live deal, it lands here automatically.
               </div>
             )}
           </div>
 
           <div className="card" data-tour="critic">
             <CardHead
-              title="Consistency & coverage critic"
-              sub="Flags only; it authors nothing. Deterministic checks always run; semantic checks need the assist model."
-              right={<Button size="sm" variant="secondary" icon="refresh" onClick={runCritic}>Run critic</Button>}
+              title="Consistency checker"
+              sub="It flags problems and never writes anything itself. The structural checks always run; the judgement-based ones need the assistant configured."
+              right={<Button size="sm" variant="secondary" icon="refresh" onClick={runCritic}>Run the checker</Button>}
             />
             {findings.map((f) => (
               <div className="imp-row" key={f.id} style={{ padding: '12px 20px' }}>
@@ -201,14 +199,14 @@ export function Coverage({ actor, onMutate }: { actor: User | null; onMutate: ()
                     {f.detail?.jurisdiction ? ` · ${f.detail.jurisdiction} × ${f.detail.regime}` : ''} · {f.detail?.source ?? 'deterministic'}
                   </div>
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => { const reason = prompt('Dismiss with reason:'); if (reason) post(`/api/assist/findings/${f.id}/dismiss`, { reason }).then(load).catch((e) => setError(e.message)); }}>
+                <Button size="sm" variant="ghost" onClick={() => { const reason = prompt('Why is this fine? The reason is kept:'); if (reason) post(`/api/assist/findings/${f.id}/dismiss`, { reason }).then(load).catch((e) => setError(e.message)); }}>
                   Dismiss
                 </Button>
               </div>
             ))}
             {!findings.length && (
               <div style={{ padding: '16px 20px', font: '400 13px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
-                No open flags. Run the critic after a batch of authoring.
+                No open flags. Run the checker after a batch of writing.
               </div>
             )}
           </div>

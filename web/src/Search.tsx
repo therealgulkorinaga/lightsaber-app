@@ -2,7 +2,7 @@
 // over the rules the actor can see; selecting a hit lands in Authoring.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Rid, Status } from './primitives.tsx';
+import { Rid, Status, KIND_LABEL } from './primitives.tsx';
 import { get } from './api.ts';
 
 export function Search({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (ruleId: string) => void }) {
@@ -41,7 +41,7 @@ export function Search({ open, onClose, onPick }: { open: boolean; onClose: () =
           ref={inputRef}
           className="fc-input"
           style={{ border: 'none', borderBottom: '1px solid var(--border)', borderRadius: 0, padding: '14px 18px', font: '400 14px/1.4 var(--font-sans)' }}
-          placeholder="Search rules: ID, title, regime…"
+          placeholder="Search rules: reference, name, regulation…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
@@ -64,7 +64,7 @@ export function Search({ open, onClose, onPick }: { open: boolean; onClose: () =
             >
               <Rid>{r.rule_id}</Rid>
               <span style={{ font: '400 13px/1.4 var(--font-sans)', color: 'var(--text-1)', flex: 1 }}>{r.title}</span>
-              <span style={{ font: '400 11px/1 var(--font-sans)', color: 'var(--text-3)' }}>{r.kind}{r.regime ? ` · ${r.regime}` : ''}</span>
+              <span style={{ font: '400 11px/1 var(--font-sans)', color: 'var(--text-3)' }}>{KIND_LABEL[r.kind] ?? r.kind}{r.regime ? ` · ${r.regime}` : ''}</span>
               <Status state={r.status} />
             </div>
           ))}

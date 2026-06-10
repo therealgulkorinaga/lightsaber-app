@@ -108,12 +108,12 @@ export function Topbar({ data, onUserChange, onSearch, onTour }: { data: ChromeD
         <span className="wordmark">
           Lightsaber<span className="wordmark-stop">.</span>
         </span>
-        <span className="mark-sub">Backoffice</span>
+        <span className="mark-sub">Back office</span>
       </div>
       <div className="lm-top">
         <div className="lm-search" data-tour="search" onClick={onSearch} style={{ cursor: 'pointer' }}>
           <Icn name="search" size={14} />
-          <span>Search rules, regimes, authorities…</span>
+          <span>Search the rulebook…</span>
           <span style={{ display: 'inline-flex', gap: 3 }}>
             <Kbd>⌘</Kbd>
             <Kbd>K</Kbd>
@@ -121,7 +121,7 @@ export function Topbar({ data, onUserChange, onSearch, onTour }: { data: ChromeD
         </div>
         <span className="spacer" />
         <span className="lm-vpill" data-tour="seam-pill">
-          <span className="led" /> seam {data.seamVersion}
+          <span className="led" /> rulebook {data.seamVersion}
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text-3)' }}>
           <button
@@ -143,7 +143,7 @@ export function Topbar({ data, onUserChange, onSearch, onTour }: { data: ChromeD
               setCurrentUserId(e.target.value);
               onUserChange();
             }}
-            title="Dev user-switcher (Phase 1 auth)"
+            title="Switch who you are working as"
           >
             {data.users.map((u) => (
               <option key={u.id} value={u.id}>
@@ -158,14 +158,14 @@ export function Topbar({ data, onUserChange, onSearch, onTour }: { data: ChromeD
 }
 
 const RAIL = [
-  { num: '01', key: 'authoring', label: 'Authoring', icon: 'edit' },
-  { num: '02', key: 'review', label: 'Review queue', icon: 'fileText' },
-  { num: '03', key: 'watch', label: 'Regime Watch', icon: 'bell' },
+  { num: '01', key: 'authoring', label: 'Write rules', icon: 'edit' },
+  { num: '02', key: 'review', label: 'Approvals', icon: 'fileText' },
+  { num: '03', key: 'watch', label: 'Watchlist', icon: 'bell' },
   { num: '04', key: 'coverage', label: 'Coverage', icon: 'pie' },
   { num: '05', key: 'releases', label: 'Releases', icon: 'layers' },
-  { num: '06', key: 'tenants', label: 'Tenants', icon: 'building' },
+  { num: '06', key: 'tenants', label: 'Clients', icon: 'building' },
 ];
-const PORTAL_RAIL = [{ num: '01', key: 'portal', label: 'Your seam', icon: 'building' }];
+const PORTAL_RAIL = [{ num: '01', key: 'portal', label: 'Your rulebook', icon: 'building' }];
 
 export function Rail({
   route,
@@ -184,7 +184,7 @@ export function Rail({
   const rail = data.actor?.role === 'tenant_admin' ? PORTAL_RAIL : RAIL;
   return (
     <nav className="lm-rail">
-      <div className="lm-rail-section">{data.actor?.role === 'tenant_admin' ? 'Portal' : 'Seam'}</div>
+      <div className="lm-rail-section">{data.actor?.role === 'tenant_admin' ? 'Your space' : 'Rulebook'}</div>
       {rail.map((it) => (
         <a
           key={it.key}
@@ -205,17 +205,17 @@ export function Rail({
 
       <div className="lm-rail-foot">
         <div className="row">
-          <span className="k">Active rules</span>
+          <span className="k">Live rules</span>
           <span className="v">{data.counts.regulatory}</span>
         </div>
         <div className="row">
-          <span className="k">ICP · OBJ · MSG</span>
+          <span className="k">Fit · Objections · Messaging</span>
           <span className="v">
             {data.counts.icp}·{data.counts.objection}·{data.counts.messaging}
           </span>
         </div>
         <div className="row" style={{ marginTop: 4 }}>
-          <span className="k">Candidate</span>
+          <span className="k">In preparation</span>
           <span className="v" style={{ color: 'var(--accent-700)' }}>
             {data.candidate ?? 'none'}
           </span>

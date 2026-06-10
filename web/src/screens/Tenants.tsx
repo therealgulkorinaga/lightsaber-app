@@ -38,12 +38,12 @@ function ClaimRow({ c, actor, tenantId, onMutate }: { c: any; actor: User | null
       <Status state={c.status === 'active' ? 'active' : c.review_state} />
       {c.review_state === 'draft' && own && (
         <Button size="sm" variant="secondary" onClick={() => act('submit')}>
-          Submit
+          Send for approval
         </Button>
       )}
       {c.review_state === 'in_review' && canReview && !own && (
         <>
-          <Button size="sm" variant="secondary" onClick={() => { const notes = prompt('Return with notes:'); if (notes) act('return', { notes }); }}>
+          <Button size="sm" variant="secondary" onClick={() => { const notes = prompt('What should they fix? Your notes go back with it:'); if (notes) act('return', { notes }); }}>
             Return
           </Button>
           <Button size="sm" variant="primary" onClick={() => act('approve')}>
@@ -62,15 +62,15 @@ function NewClaim({ tenantId, onMutate }: { tenantId: string; onMutate: () => vo
     return (
       <div style={{ padding: '12px 20px' }}>
         <Button size="sm" variant="ghost" icon="plus" onClick={() => setOpen(true)}>
-          New claim
+          Add a product fact
         </Button>
       </div>
     );
   return (
     <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'grid', gap: 8 }}>
-      <input className="fc-input" placeholder="Title (one checkable sentence's label)" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-      <textarea className="fc-area" rows={2} placeholder="Statement — one checkable sentence" value={form.statement} onChange={(e) => setForm({ ...form, statement: e.target.value })} />
-      <textarea className="fc-area" rows={2} placeholder="Evidence — what proves it" value={form.evidence} onChange={(e) => setForm({ ...form, evidence: e.target.value })} />
+      <input className="fc-input" placeholder="Short name for this fact" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+      <textarea className="fc-area" rows={2} placeholder="The fact itself — one sentence someone could check" value={form.statement} onChange={(e) => setForm({ ...form, statement: e.target.value })} />
+      <textarea className="fc-area" rows={2} placeholder="What proves it (document, certificate, contract)" value={form.evidence} onChange={(e) => setForm({ ...form, evidence: e.target.value })} />
       <div style={{ display: 'flex', gap: 8 }}>
         <select className="fc-input" style={{ width: 'auto' }} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
           {CATEGORIES.map((c) => (
@@ -79,7 +79,7 @@ function NewClaim({ tenantId, onMutate }: { tenantId: string; onMutate: () => vo
             </option>
           ))}
         </select>
-        <input className="fc-input" style={{ width: 160 }} type="date" title="Review date (claims that age)" value={form.review_date} onChange={(e) => setForm({ ...form, review_date: e.target.value })} />
+        <input className="fc-input" style={{ width: 160 }} type="date" title="Re-check by (for facts that go out of date, like certificates)" value={form.review_date} onChange={(e) => setForm({ ...form, review_date: e.target.value })} />
         <span style={{ flex: 1 }} />
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
           Cancel
@@ -139,9 +139,9 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
   };
 
   const provision = async () => {
-    const name = prompt('Tenant name:');
+    const name = prompt('Client name:');
     if (!name) return;
-    const admin_name = prompt('Adopter admin name (optional):') ?? undefined;
+    const admin_name = prompt('Their admin contact (optional):') ?? undefined;
     try {
       const r = await post('/api/tenants', { name, admin_name });
       setSel(r.tenant.id);
@@ -154,7 +154,7 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
   const deploy = async (release: string) => {
     try {
       const r = await post(`/api/tenants/${sel}/deploy`, { release });
-      alert(`Deployed ${release}.\nDeploy key (give it to the skill deployment, shown once):\n${r.deploy_key}`);
+      alert(`Delivered rulebook ${release}.\nAccess key for their installation (shown once, keep it safe):\n${r.deploy_key}`);
       refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -164,7 +164,7 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
   const upgrade = async () => {
     try {
       const r = await post(`/api/tenants/${sel}/upgrade`);
-      alert(`Upgraded ${r.from} → ${r.to}.\nNew deploy key:\n${r.deploy_key}`);
+      alert(`Upgraded ${r.from} → ${r.to}.\nNew access key for their installation:\n${r.deploy_key}`);
       refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -178,18 +178,17 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
     <div className="scr-scroll">
       <div className="scr scr-wide">
         <ScreenHead
-          title="Tenant Fleet"
+          title="Clients"
           intro={
             <span>
-              <span className="hl">Who is running what.</span> Each adopter pins a published seam version; claims are isolated
-              behind row-level security and a deployed bundle carries exactly one tenant's claims, asserted on every deploy.
+              <span className="hl">Who is running what.</span> Each client runs a fixed version of the rulebook. Their product facts are kept strictly separate, and every delivery is checked to carry one client's facts and nobody else's.
             </span>
           }
         >
-          <Stat n={fleet.length} label="Tenants" tone="brand" />
-          <Stat n={fleet.filter((f) => f.pinned_version && f.pinned_version === f.latest_published).length} label="On latest" tone="ok" />
-          <Stat n={fleet.filter((f) => f.upgrade_available).length} label="Upgrade ready" tone="accent" />
-          <Stat n={fleet.filter((f) => f.stale_rules > 0).length} label="Carrying stale rules" tone="warn" />
+          <Stat n={fleet.length} label="Clients" tone="brand" />
+          <Stat n={fleet.filter((f) => f.pinned_version && f.pinned_version === f.latest_published).length} label="On the latest rulebook" tone="ok" />
+          <Stat n={fleet.filter((f) => f.upgrade_available).length} label="Upgrade waiting" tone="accent" />
+          <Stat n={fleet.filter((f) => f.stale_rules > 0).length} label="Running out-of-date rules" tone="warn" />
         </ScreenHead>
 
         {error && (
@@ -204,37 +203,37 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
         <div style={{ marginBottom: 14 }}>
           {isLead && (
             <Button variant="secondary" icon="plus" onClick={provision}>
-              Provision tenant
+              Add a client
             </Button>
           )}
         </div>
 
         <div className="md">
           <div data-tour="fleet">
-            <div className="md-list-h">Adopter tenants</div>
+            <div className="md-list-h">Clients</div>
             <div className="md-list">
               {fleet.map((f) => (
                 <button key={f.id} className="tn-item" data-active={f.id === sel || undefined} onClick={() => setSel(f.id)}>
                   <div className="tn-top">
                     <div>
                       <div className="tn-name">{f.name}</div>
-                      <div className="tn-type">onboarded {f.onboarded_at?.slice(0, 10)}</div>
+                      <div className="tn-type">since {f.onboarded_at?.slice(0, 10)}</div>
                     </div>
                     <span className="tn-fresh">
                       <span className={'fd ' + (f.stale_rules > 0 ? 'stale' : 'ok')} />
-                      {f.stale_rules > 0 ? `${f.stale_rules} stale` : 'fresh'}
+                      {f.stale_rules > 0 ? `${f.stale_rules} out of date` : 'up to date'}
                     </span>
                   </div>
                   <div className="tn-meta">
                     <span>
-                      <span className="k">pinned</span> {f.pinned_version ? `seam ${f.pinned_version}` : 'not deployed'}
+                      <span className="k">running</span> {f.pinned_version ? `rulebook ${f.pinned_version}` : 'nothing delivered yet'}
                     </span>
                     <span>
-                      <span className="k">claims</span> {f.claims_pending ? `${f.claims_pending} pending` : `${f.claims_active} active`}
+                      <span className="k">product facts</span> {f.claims_pending ? `${f.claims_pending} awaiting approval` : `${f.claims_active} live`}
                     </span>
                     {f.upgrade_available && (
                       <span style={{ marginLeft: 'auto' }}>
-                        <Badge tone="brand">upgrade ready</Badge>
+                        <Badge tone="brand">upgrade waiting</Badge>
                       </span>
                     )}
                   </div>
@@ -242,7 +241,7 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
               ))}
               {!fleet.length && (
                 <div className="card" style={{ padding: 18, font: '400 13px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
-                  No tenants yet. Provision the first adopter.
+                  No clients yet. Add the first one.
                 </div>
               )}
             </div>
@@ -255,29 +254,29 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
                 <div className="card" style={{ marginBottom: 14 }}>
                   <div className="tn-kv">
                     <div className="kv">
-                      <div className="k">Pinned seam</div>
+                      <div className="k">Running rulebook</div>
                       <div className="v mono">{t.pinned_version ?? '—'}</div>
                     </div>
                     <div className="kv">
-                      <div className="k">Latest published</div>
+                      <div className="k">Newest rulebook</div>
                       <div className="v mono">{t.latest_published ?? '—'}</div>
                     </div>
                     <div className="kv">
-                      <div className="k">Freshness</div>
+                      <div className="k">Up to date?</div>
                       <div className="v" style={t.stale_rules.length ? { color: 'var(--warn-text)' } : { color: 'var(--ok)' }}>
-                        {t.stale_rules.length ? `${t.stale_rules.length} stale: ${t.stale_rules.join(', ')}` : 'all fresh'}
+                        {t.stale_rules.length ? `${t.stale_rules.length} out of date: ${t.stale_rules.join(', ')}` : 'fully up to date'}
                       </div>
                     </div>
                     <div className="kv">
-                      <div className="k">SLA tier</div>
+                      <div className="k">Service level</div>
                       <div className="v">{t.engagement?.sla_tier ?? 'standard'}</div>
                     </div>
                     <div className="kv">
-                      <div className="k">Engagement</div>
+                      <div className="k">Covers</div>
                       <div className="v mono">{(t.engagement?.jurisdictions ?? []).join(', ') || '—'}</div>
                     </div>
                     <div className="kv">
-                      <div className="k">Last deploy</div>
+                      <div className="k">Last delivery</div>
                       <div className="v mono">{t.deployments[0]?.deployed_at?.slice(0, 16).replace('T', ' ') ?? 'never'}</div>
                     </div>
                   </div>
@@ -286,7 +285,7 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
                     <div className="upg">
                       <div className="upg-head">
                         <Icn name="trendingUp" size={17} color="var(--brand)" />
-                        <span className="uh-t">Upgrade available</span>
+                        <span className="uh-t">A newer rulebook is ready for them</span>
                         <span className="uh-v">
                           <Rid ghost>{t.pinned_version}</Rid>
                           <Icn name="arrowRight" size={13} />
@@ -306,11 +305,11 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
                         )}
                       </div>
                       <div className="upg-foot">
-                        <Button variant="primary" icon="arrowUpRight" disabled={!isLead} title={!isLead ? 'Practice Lead upgrades' : undefined} onClick={upgrade}>
-                          Upgrade & redeploy
+                        <Button variant="primary" icon="arrowUpRight" disabled={!isLead} title={!isLead ? 'Only the practice lead runs upgrades' : undefined} onClick={upgrade}>
+                          Upgrade and redeliver
                         </Button>
                         <span style={{ marginLeft: 'auto', font: '400 11.5px/1.4 var(--font-sans)', color: 'var(--text-3)' }}>
-                          The pin holds until the practice runs the upgrade
+                          They stay on their current version until the practice runs the upgrade
                         </span>
                       </div>
                     </div>
@@ -318,25 +317,24 @@ export function Tenants({ actor, onMutate }: { actor: User | null; onMutate: () 
                     <div style={{ padding: '14px 20px', display: 'flex', gap: 10, alignItems: 'center' }}>
                       {canDeploy && t.latest_published && (
                         <Button variant="secondary" icon="send" onClick={() => deploy(t.latest_published)}>
-                          {t.pinned_version ? `Redeploy ${t.latest_published}` : `Deploy ${t.latest_published}`}
+                          {t.pinned_version ? `Redeliver ${t.latest_published}` : `Deliver ${t.latest_published}`}
                         </Button>
                       )}
                       {t.pinned_version === t.latest_published && t.pinned_version && (
-                        <span style={{ font: '400 12px/1.4 var(--font-sans)', color: 'var(--ok)' }}>On the latest published seam.</span>
+                        <span style={{ font: '400 12px/1.4 var(--font-sans)', color: 'var(--ok)' }}>On the newest rulebook.</span>
                       )}
                     </div>
                   )}
                 </div>
 
                 <div className="card">
-                  <CardHead title="Approved claims" sub="The only source the engine may assert this tenant's facts from; empty means the engine abstains on all traction" />
+                  <CardHead title="Product facts" sub="The only things the sales engine may say about this client's product. While this is empty it says nothing about the product at all, which is the honest default." />
                   {t.claims.map((c: any) => (
                     <ClaimRow key={`${c.claim_id}:${c.version}`} c={c} actor={actor} tenantId={t.tenant.id} onMutate={refresh} />
                   ))}
                   {!t.claims.length && (
                     <div style={{ padding: '14px 20px', font: '400 12.5px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
-                      No claims. The deployed engine abstains on every capability, certification, reference and figure — which is
-                      correct behaviour, not a defect.
+                      No facts approved yet. Until there are, the sales engine will not claim a single capability, certificate, reference or number for this client — by design.
                     </div>
                   )}
                   <NewClaim tenantId={t.tenant.id} onMutate={refresh} />

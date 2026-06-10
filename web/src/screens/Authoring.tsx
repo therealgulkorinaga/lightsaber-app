@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { lintText } from '@lightsaber/voice-lint';
 import { Icn } from '../icons.tsx';
-import { Button, Rid, Status } from '../primitives.tsx';
+import { Button, Rid, Status, KIND_LABEL } from '../primitives.tsx';
 import { wordDiff, type DiffPart } from '../diff.ts';
 import { get, post, put, ApiError, type User } from '../api.ts';
 
@@ -232,9 +232,9 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
         items.push({
           level: 'block',
           key: `emdash-${field}`,
-          title: 'Em-dash found',
+          title: 'Em dash found',
           loc: field,
-          desc: 'The seam voice allows no em-dashes. Auto-resolve swaps it for a comma.',
+          desc: 'House style allows no em dashes. Auto-fix swaps it for a comma.',
           fix: 'emdash',
           overridable: { field, word: 'em_dash' },
         });
@@ -242,9 +242,9 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
         items.push({
           level: 'block',
           key: `banned-${field}-${hit.word}`,
-          title: `Kill-list word: “${hit.word}”`,
+          title: `Banned word: “${hit.word}”`,
           loc: field,
-          desc: `“${hit.word}” is on the voice kill-list. Auto-resolve rewrites it.`,
+          desc: `“${hit.word}” is on the banned-word list. Auto-fix rewrites it.`,
           fix: 'banned',
           overridable: { field, word: hit.word! },
         });
@@ -258,11 +258,11 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
       ? {
           level: 'block',
           key: 'tags',
-          title: 'Unknown jurisdiction',
-          loc: 'Jurisdiction',
-          desc: `${badTags.join(', ')} is not in the registry.`,
+          title: 'Unknown place',
+          loc: 'Where it applies',
+          desc: `${badTags.join(', ')} is not a place this system knows.`,
         }
-      : { level: 'pass', key: 'tags', title: 'Jurisdiction valid' },
+      : { level: 'pass', key: 'tags', title: 'Places recognised' },
   );
 
   if (draft.kind === 'regulatory' && draft.regime && draft.jurisdiction_tags.length) {
@@ -276,11 +276,11 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
         ? {
             level: 'block',
             key: 'regime-scope',
-            title: 'Jurisdiction outside the regime',
-            loc: 'Jurisdiction',
-            desc: `${draft.regime} does not reach ${outside.join(', ')}. Use a layered regime such as cross_regime, or correct the tag.`,
+            title: 'Place outside this regulation',
+            loc: 'Where it applies',
+            desc: `${draft.regime} does not apply in ${outside.join(', ')}. Pick a regulation that does (such as cross_regime), or correct the place.`,
           }
-        : { level: 'pass', key: 'regime-scope', title: 'Regime covers the jurisdictions' },
+        : { level: 'pass', key: 'regime-scope', title: 'Regulation covers the places' },
     );
   }
 
@@ -292,7 +292,7 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
           key: 'auth',
           title: 'Authority missing',
           loc: 'Authority',
-          desc: 'Every regulatory rule names the instrument it rests on.',
+          desc: 'Every regulation rule names the law it rests on.',
         },
   );
   const badInputs = draft.inputs_required.filter((f) => !meta?.prospect_fields.includes(f));
@@ -302,10 +302,10 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
           level: 'block',
           key: 'inputs',
           title: 'Unknown prospect fact',
-          loc: 'Needed facts',
-          desc: `${badInputs.join(', ')} is not a fact the engine collects about a prospect.`,
+          loc: 'What we must know',
+          desc: `${badInputs.join(', ')} is not a fact the sales engine collects about a prospect.`,
         }
-      : { level: 'pass', key: 'inputs', title: 'Needed facts recognised' },
+      : { level: 'pass', key: 'inputs', title: 'Prospect facts recognised' },
   );
   items.push(
     draft.kind !== 'regulatory' || draft.buyer_reading.trim()
@@ -325,8 +325,8 @@ function computeClientLint(draft: DraftState, meta: Meta | null): LintItem[] {
           level: 'block',
           key: 'source',
           title: 'No source',
-          loc: 'Sources',
-          desc: 'A regulatory rule cannot be submitted without the citation it rests on.',
+          loc: 'Where to check it',
+          desc: 'A regulation rule cannot go for approval without the document it rests on.',
         },
   );
   return items;
@@ -351,7 +351,7 @@ function ReviewPanel({
     <div className={'gate-card ' + (ok ? 'ok' : 'block')}>
       <div className="gate-head">
         <Icn name={ok ? 'checkCircle' : 'alertCircle'} size={18} />
-        {ok ? 'Ready for review' : `${blocks} ${blocks === 1 ? 'thing' : 'things'} to fix before review`}
+        {ok ? 'Ready to send for approval' : `${blocks} ${blocks === 1 ? 'thing' : 'things'} to fix first`}
       </div>
       {(issues.length > 0 || serverFindings.length > 0) && (
         <div className="gate-issues">
@@ -366,7 +366,7 @@ function ReviewPanel({
               <div className="gi-act" style={{ display: 'flex', gap: 8 }}>
                 {it.fix && (
                   <Button variant="secondary" size="sm" icon="refresh" onClick={() => onResolve(it.fix!)}>
-                    Auto-resolve
+                    Auto-fix
                   </Button>
                 )}
                 {it.overridable && (
@@ -390,7 +390,7 @@ function ReviewPanel({
       <div className="gate-passed">
         <Icn name="check" size={14} color="var(--ok)" />
         <span>
-          <b>{passed} checks passed</b> — everything is checked again at submission and before any release ships
+          <b>{passed} checks passed</b> — everything is checked again when you send it, and again before any release ships
         </span>
       </div>
     </div>
@@ -406,7 +406,7 @@ function ChangesPanel({ draft, baseline }: { draft: DraftState; baseline: DraftS
           <span className="vs">new rule</span>
         </div>
         <div className="chg-unchanged" style={{ borderTop: 'none', paddingTop: 4 }}>
-          First version. Everything here is new; the review panel is the gate.
+          First version. Everything here is new; the checks on the right are what stand between it and approval.
         </div>
       </div>
     );
@@ -416,9 +416,9 @@ function ChangesPanel({ draft, baseline }: { draft: DraftState; baseline: DraftS
     { key: 'authority_summary', label: 'Authority' },
     { key: 'buyer_reading', label: 'Buyer reading' },
     { key: 'applicability', label: 'Applicability' },
-    { key: 'movement_note', label: 'Movement note' },
-    { key: 'jurisdiction_tags', label: 'Jurisdiction', join: true },
-    { key: 'inputs_required', label: 'Needed facts', join: true },
+    { key: 'movement_note', label: 'Upcoming change' },
+    { key: 'jurisdiction_tags', label: 'Where it applies', join: true },
+    { key: 'inputs_required', label: 'Prospect facts', join: true },
   ];
   const ser = (v: unknown) => (Array.isArray(v) ? v.join('|') : String(v ?? ''));
   const changed = rows.filter((r) => ser(draft[r.key]) !== ser(baseline[r.key]));
@@ -427,11 +427,11 @@ function ChangesPanel({ draft, baseline }: { draft: DraftState; baseline: DraftS
     <div className="changes">
       <div className="changes-head">
         <h3>What changed</h3>
-        <span className="vs">draft vs active</span>
+        <span className="vs">draft vs the live version</span>
       </div>
       {changed.length === 0 && (
         <div className="chg-unchanged" style={{ borderTop: 'none', paddingTop: 4 }}>
-          No edits yet — change a field and it appears here. An unchanged submission is rejected.
+          No edits yet — change a field and it appears here. You cannot send an unchanged rule for approval.
         </div>
       )}
       {changed.map((r) => (
@@ -481,15 +481,15 @@ function AssistPanel({
     <div className="changes" data-tour="assist" style={{ marginTop: 14 }}>
       <div className="changes-head">
         <h3>Assistant</h3>
-        <span className="vs">drafts and flags; never approves</span>
+        <span className="vs">it drafts and flags; people approve</span>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => run(() => post('/api/assist/research', { regime: draft.regime, jurisdiction: draft.jurisdiction_tags[0] }))}>
-          Research sources
+          Find sources for me
         </Button>
         {newMode && (
           <Button size="sm" variant="secondary" disabled={busy || !draft.statement.trim()} title="Shapes the mechanics around your rough substance" onClick={() => run(() => post('/api/assist/scaffold', { kind: draft.kind, regime: draft.regime, jurisdiction_tags: draft.jurisdiction_tags, rough: { title: draft.title, statement: draft.statement, buyer_reading: draft.buyer_reading } }))}>
-          Scaffold from my rough text
+          Shape my rough text into a rule
           </Button>
         )}
       </div>
@@ -497,7 +497,7 @@ function AssistPanel({
       {out?.candidates && (
         <div style={{ display: 'grid', gap: 8 }}>
           <div style={{ font: '400 11.5px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
-            Sources to read yourself; no pre-written conclusions for regulatory work. {out.dropped_sourceless > 0 && `${out.dropped_sourceless} source-less candidate(s) discarded.`}
+            Sources for you to read yourself; the assistant deliberately writes no conclusions for regulation rules. {out.dropped_sourceless > 0 && `${out.dropped_sourceless} suggestion(s) without a source were discarded.`}
           </div>
           {out.candidates.map((c: any) => (
             <div key={c.finding_id} style={{ padding: '10px 12px', background: 'var(--slate-50)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
@@ -509,10 +509,10 @@ function AssistPanel({
                   const r = await post(`/api/assist/findings/${c.finding_id}/accept`);
                   onPrefill(r.prefill);
                 }}>
-                  Take into draft
+                  Start a draft from this
                 </Button>
                 <Button size="sm" variant="ghost" onClick={async () => {
-                  const reason = window.prompt('Rejected because (e.g. source unverifiable):');
+                  const reason = window.prompt('Rejecting because (e.g. could not verify the source):');
                   if (reason) { await post(`/api/assist/findings/${c.finding_id}/dismiss`, { reason }); setOut({ ...out, candidates: out.candidates.filter((x: any) => x.finding_id !== c.finding_id) }); }
                 }}>
                   Reject
@@ -531,7 +531,7 @@ function AssistPanel({
         <div style={{ padding: '10px 12px', background: 'var(--slate-50)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
           <div style={{ font: '400 12px/1.5 var(--font-sans)', color: 'var(--text-2)', marginBottom: 6 }}>{out.note}</div>
           <Button size="sm" variant="secondary" onClick={() => onPrefill(out.draft)}>
-            Apply scaffold
+            Use this shape
           </Button>
         </div>
       )}
@@ -660,11 +660,11 @@ export function Authoring({
     });
 
   const override = async (field: string, word: string) => {
-    const reason = window.prompt(`Reason for keeping “${word === 'em_dash' ? 'the em dash' : word}” in ${field}:`);
+    const reason = window.prompt(`Why keep “${word === 'em_dash' ? 'the em dash' : word}” in ${field}? Your reason goes on the record:`);
     if (!reason) return;
     try {
       await post(`/api/rules/${draft.rule_id}/lint-overrides`, { field, word, reason });
-      setBanner({ tone: 'ok', text: `Noted. The reason is on the record; this flag clears at submission.` });
+      setBanner({ tone: 'ok', text: `Noted. Your reason is on the record; this flag clears when you send it.` });
     } catch (e) {
       setBanner({ tone: 'err', text: (e as Error).message });
     }
@@ -685,7 +685,7 @@ export function Authoring({
         setNewMode(false);
         setTopic('');
         setSelected(draft.rule_id);
-        setBanner({ tone: 'ok', text: `${draft.rule_id} created. It stays private to you until submitted.` });
+        setBanner({ tone: 'ok', text: `${draft.rule_id} created. Only you can see it until you send it for approval.` });
       } else {
         const r = await put(`/api/rules/${draft.rule_id}/draft`, payload);
         setServerFindings(r.findings?.filter((f: any) => f.level === 'block') ?? []);
@@ -717,7 +717,7 @@ export function Authoring({
   const submit = async () => {
     try {
       await post(`/api/rules/${draft.rule_id}/submit`);
-      setBanner({ tone: 'ok', text: `Sent for review. ${draft.rule_id} is now in the review queue.` });
+      setBanner({ tone: 'ok', text: `Sent for approval. ${draft.rule_id} is now in the Approvals queue.` });
       await loadDetail(draft.rule_id);
       onMutate();
     } catch (e) {
@@ -750,7 +750,7 @@ export function Authoring({
     <>
       <div className="ws-head">
         <div className="crumb" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>Authoring</span>
+          <span>Write rules</span>
           <span className="sep">/</span>
           <select
             className="fc-input"
@@ -767,7 +767,7 @@ export function Authoring({
           >
             {rules.map((r) => (
               <option key={r.rule_id} value={r.rule_id}>
-                {r.rule_id} · {r.kind}
+                {r.rule_id} · {KIND_LABEL[r.kind] ?? r.kind}
                 {r.status === 'retired' ? ' · retired' : ''}
               </option>
             ))}
@@ -779,7 +779,7 @@ export function Authoring({
               size="sm"
               icon="plus"
               disabled={!canAuthor}
-              title={!canAuthor ? `Substance is authored by the legal specialists; switch user top-right` : undefined}
+              title={!canAuthor ? `Rules are written by the legal specialists; switch who you are working as, top right` : undefined}
               style={!canAuthor ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
               onClick={() => canAuthor && startNew()}
             >
@@ -788,7 +788,7 @@ export function Authoring({
           </span>
         </div>
         <div className="ws-title-row">
-          <Rid size="lg">{newMode ? draft.rule_id || 'ID allocates as you type' : selected}</Rid>
+          <Rid size="lg">{newMode ? draft.rule_id || 'reference appears as you type' : selected}</Rid>
           <Status state={ruleStatus} />
           {openVersion && (
             <span style={{ font: '500 11.5px/1 var(--font-mono)', color: 'var(--text-3)' }}>
@@ -798,21 +798,20 @@ export function Authoring({
           <h1 style={{ width: '100%', marginTop: 8 }}>{draft.title || 'Untitled rule'}</h1>
         </div>
         <p className="ws-intro">
-          <span className="hl">{newMode ? 'Author the rule, then send it for review.' : 'Revise the rule, then send it for review.'}</span>{' '}
-          Write the substance on the left. The panel on the right flags anything a reviewer would bounce, and shows exactly what
-          changed against the version on file.
+          <span className="hl">{newMode ? 'Write the rule, then send it for approval.' : 'Revise the rule, then send it for approval.'}</span>{' '}
+          Write the substance on the left. The panel on the right flags anything an approver would send back, and shows exactly what changed against the version on file.
         </p>
         <div className="submeta" style={{ marginTop: 14 }}>
           <span>
-            Regime <b>{draft.regime || '—'}</b>
+            Regulation <b>{draft.regime || '—'}</b>
           </span>
           <span style={{ color: 'var(--border-strong)' }}>·</span>
           <span>
-            Jurisdiction <b>{draft.jurisdiction_tags.join(', ') || '—'}</b>
+            Applies in <b>{draft.jurisdiction_tags.join(', ') || '—'}</b>
           </span>
           <span style={{ color: 'var(--border-strong)' }}>·</span>
           <span>
-            Kind <b>{draft.kind}</b>
+            Type <b>{KIND_LABEL[draft.kind] ?? draft.kind}</b>
           </span>
         </div>
       </div>
@@ -855,7 +854,7 @@ export function Authoring({
                 {editable
                   ? 'Write what the rule says, what it rests on, and when it applies.'
                   : inReview
-                    ? 'This version is with the reviewer. It is frozen until approved or returned.'
+                    ? 'This version is with its approver. It is frozen until approved or sent back.'
                     : canAuthor
                       ? 'No open draft. Open a new version to revise this rule.'
                       : 'Read-only for your role.'}
@@ -876,7 +875,7 @@ export function Authoring({
               className="fc-input"
               value={draft.title}
               readOnly={!editable}
-              placeholder="A short label, e.g. Mandatory contractual provisions"
+              placeholder="A short name, e.g. Mandatory contract terms"
               onChange={(e) => set('title', e.target.value)}
             />
           </Field>
@@ -886,7 +885,7 @@ export function Authoring({
               <Field
                 label="Statement"
                 changed={ch('statement')}
-                help="The single legal proposition the engine may assert, stated as it operates. One rule, one assertable unit."
+                help="The one thing this rule says the law requires. One rule makes one point; if it makes two, split it."
               >
                 <textarea
                   className={'fc-area' + (ch('statement') ? ' edited' : '')}
@@ -899,7 +898,7 @@ export function Authoring({
               <Field
                 label="Buyer reading"
                 changed={ch('buyer_reading')}
-                help="How the buyer's compliance function reads this in a buying decision. Written from deal experience, kept apart from the Statement."
+                help="What this means in practice for the customer's compliance team when they are deciding whether to buy. Written from deal experience."
               >
                 <textarea
                   className={'fc-area' + (ch('buyer_reading') ? ' edited' : '')}
@@ -916,7 +915,7 @@ export function Authoring({
               <Field
                 label="Authority"
                 changed={ch('authority_summary')}
-                help="The instrument, at article level where you are certain, instrument level otherwise. Never invented."
+                help="The law or guidance this rests on, down to the exact article where you are sure. Never guessed."
               >
                 <textarea
                   className={'fc-area fc-mono' + (ch('authority_summary') ? ' edited' : '')}
@@ -927,11 +926,11 @@ export function Authoring({
                 />
               </Field>
               <Field
-                label="Sources"
+                label="Where to check it"
                 help={
                   openVersion?.ai_assisted
-                    ? 'This draft began as an assistant draft: tick each source as read before it can go for review. The tick is the acceptance act.'
-                    : 'Where a reviewer or an auditor goes to verify the authority.'
+                    ? 'The assistant drafted this, so you confirm the homework: open and read each source, then tick it. Nothing goes for approval until every source is ticked.'
+                    : 'The documents an approver or an auditor would open to check this rule is right.'
                 }
               >
                 {draft.sources.map((s: any, i) => (
@@ -1000,27 +999,27 @@ export function Authoring({
               {/* ── Where and when it applies ─────────────────── */}
               <SectionLabel>Where and when it applies</SectionLabel>
 
-              <Field label="Jurisdiction" help="Tags layer: EU covers every member state; a national or city tag stacks local rules on top.">
+              <Field label="Where it applies" help="Places stack: EU covers every member country; adding a country or city layers local rules on top.">
                 <TagChips
                   tags={draft.jurisdiction_tags}
                   meta={meta}
                   layered
-                  addPrompt="Jurisdiction tag (e.g. EU, IE, US-NY):"
+                  addPrompt="Place code (e.g. EU, IE, US-NY):"
                   onAdd={(t) => editable && set('jurisdiction_tags', [...draft.jurisdiction_tags, t])}
                   onRemove={(t) => editable && set('jurisdiction_tags', draft.jurisdiction_tags.filter((x) => x !== t))}
                 />
               </Field>
 
               <Field
-                label="Regime"
+                label="Regulation"
                 help={
                   draft.jurisdiction_tags.length
-                    ? `Only regimes that reach ${draft.jurisdiction_tags.join(', ')} are offered.`
-                    : 'All regimes; the list narrows once a jurisdiction is set.'
+                    ? `Only regulations that apply in ${draft.jurisdiction_tags.join(', ')} are offered.`
+                    : 'All regulations; the list narrows once you set where the rule applies.'
                 }
               >
                 <select className="fc-input" value={draft.regime} disabled={!editable} onChange={(e) => set('regime', e.target.value)}>
-                  {orphaned && <option value={draft.regime}>{draft.regime} (does not reach these jurisdictions)</option>}
+                  {orphaned && <option value={draft.regime}>{draft.regime} (does not apply in these places)</option>}
                   {compatible.map((r) => (
                     <option key={r.code} value={r.code}>
                       {r.code}
@@ -1032,7 +1031,7 @@ export function Authoring({
               <Field
                 label="Applicability"
                 changed={ch('applicability')}
-                help="The conditions under which the rule fires for a prospect."
+                help="When this rule kicks in for a given prospect."
               >
                 <textarea
                   className={'fc-area' + (ch('applicability') ? ' edited' : '')}
@@ -1044,24 +1043,24 @@ export function Authoring({
               </Field>
 
               <Field
-                label="Needed facts about the prospect"
-                help="If any of these are unknown, the engine will not apply the rule; it lists the gap instead of guessing."
+                label="What we must know about the prospect"
+                help="If any of these are unknown, the sales engine will not use this rule; it says what is missing instead of guessing."
               >
                 <TagChips
                   tags={draft.inputs_required}
                   meta={meta}
-                  addPrompt={`Prospect fact (one of: ${meta?.prospect_fields.join(', ') ?? ''})`}
+                  addPrompt={`Fact about the prospect (one of: ${meta?.prospect_fields.join(', ') ?? ''})`}
                   onAdd={(t) => editable && set('inputs_required', [...draft.inputs_required, t])}
                   onRemove={(t) => editable && set('inputs_required', draft.inputs_required.filter((x) => x !== t))}
                 />
               </Field>
 
               {/* ── Lifecycle ─────────────────────────────────── */}
-              <SectionLabel>Lifecycle</SectionLabel>
+              <SectionLabel>Keeping it current</SectionLabel>
 
               <Field
-                label="Movement note"
-                help="A pending change you already know about: a dated application, a bill in passage, an adopted-but-unpublished amendment. Saving it puts the rule on the watch list."
+                label="Upcoming change"
+                help="A change you already know is coming: a start date, a bill going through, an amendment not yet in force. Saving this puts the rule on the watchlist."
               >
                 <textarea
                   className="fc-area"
@@ -1087,11 +1086,11 @@ export function Authoring({
                     />
                   </Field>
                 ))}
-              <SectionLabel>Lifecycle</SectionLabel>
+              <SectionLabel>Keeping it current</SectionLabel>
             </>
           )}
 
-          <Field label="Change note" help="Why this version exists. It travels with the rule's history.">
+          <Field label="Why this change" help="One line on why this version exists. It stays with the rule's history forever.">
             <textarea
               className="fc-area"
               rows={2}
@@ -1103,10 +1102,10 @@ export function Authoring({
 
           {newMode && (
             <>
-              <SectionLabel>Filing</SectionLabel>
+              <SectionLabel>Reference number</SectionLabel>
               <Field
                 label="Topic code"
-                help="Two to six letters naming the topic, e.g. CON for contracts, OUT for outsourcing, TPR for third-party risk. The reference allocates itself from the regime, jurisdiction and topic."
+                help="Two to six letters naming the topic, e.g. CON for contracts, OUT for outsourcing. The reference number writes itself from the regulation, the place and your topic."
               >
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   <input
@@ -1118,7 +1117,7 @@ export function Authoring({
                     onChange={(e) => setTopic(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                   />
                   <span style={{ font: '500 12px/1 var(--font-mono)', color: draft.rule_id ? 'var(--text-1)' : 'var(--text-4)' }}>
-                    {draft.rule_id ? `→ files as ${draft.rule_id}` : 'reference appears here'}
+                    {draft.rule_id ? `→ will be filed as ${draft.rule_id}` : 'the reference appears here'}
                   </span>
                 </div>
               </Field>
@@ -1128,7 +1127,7 @@ export function Authoring({
           {provenance && !newMode && (
             <div className="field" style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 22 }}>
               <div className="field-head">
-                <label>Provenance</label>
+                <label>History</label>
               </div>
               <div className="prov">
                 <div className="pv">
@@ -1162,7 +1161,7 @@ export function Authoring({
                     color: 'var(--text-2)',
                   }}
                 >
-                  <span style={{ color: 'var(--warn-text)', fontWeight: 500 }}>Returned with notes · </span>
+                  <span style={{ color: 'var(--warn-text)', fontWeight: 500 }}>Sent back with notes · </span>
                   {provenance.review_notes}
                 </div>
               )}
@@ -1173,8 +1172,8 @@ export function Authoring({
         {/* RIGHT — review (gate first), then changes */}
         <div className="pane pane-side">
           <div className="side-intro">
-            <h3>Review</h3>
-            <p>Runs as you type. Clear the flags, then submit.</p>
+            <h3>Checks</h3>
+            <p>Run as you type. Clear the flags, then send it for approval.</p>
           </div>
           <div data-tour="review-panel">
             <ReviewPanel items={lint} serverFindings={serverFindings} onResolve={resolve} onOverride={override} />
@@ -1186,7 +1185,7 @@ export function Authoring({
               newMode={newMode}
               onPrefill={(prefill) => {
                 setDraft((d) => ({ ...d, ...prefill, kind_fields: { ...d.kind_fields, ...(prefill.kind_fields ?? {}) } }));
-                setBanner({ tone: 'ok', text: 'Assistant draft loaded. Your words to verify and own; the source ticks gate submission.' });
+                setBanner({ tone: 'ok', text: 'Assistant draft loaded. Read and tick each source; the rule cannot go for approval until you have.' });
               }}
             />
           )}
@@ -1199,11 +1198,11 @@ export function Authoring({
           <Icn name={blocks ? 'alertCircle' : 'checkCircle'} size={16} color={blocks ? 'var(--block)' : 'var(--ok)'} />
           {!canAuthor ? (
             <span>
-              Substance is authored and approved by the legal specialists — switch user top-right
+              Rules are written and approved by the legal specialists — switch who you are working as, top right
             </span>
           ) : newMode ? (
             <span>
-              <b>New rule.</b> Save the draft first; it goes for review from there.
+              <b>New rule.</b> Save the draft first; you send it for approval from there.
             </span>
           ) : blocks ? (
             <span>
@@ -1214,7 +1213,7 @@ export function Authoring({
             </span>
           ) : (
             <span>
-              <b>All clear.</b> Ready to send for review.
+              <b>All clear.</b> Ready to send for approval.
             </span>
           )}
         </span>
@@ -1229,7 +1228,7 @@ export function Authoring({
           onClick={submit}
           style={newMode || !editable || blocks > 0 ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
         >
-          Submit for review
+          Send for approval
         </Button>
       </div>
     </>

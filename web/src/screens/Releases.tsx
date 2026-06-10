@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Icn } from '../icons.tsx';
-import { Button, Rid, ScreenHead, Stat } from '../primitives.tsx';
+import { Button, Rid, ScreenHead, Stat, RELEASE_STATUS_LABEL } from '../primitives.tsx';
 import { get, post, type User } from '../api.ts';
 
 function GateCheck({ check, open, onToggle }: { check: any; open: boolean; onToggle: () => void }) {
@@ -49,15 +49,15 @@ function Changelog({ release }: { release: any }) {
   const groups = [
     { key: 'added', label: 'Added', tone: 'var(--ok)' },
     { key: 'changed', label: 'Changed', tone: 'var(--accent)' },
-    { key: 'staled', label: 'Staled', tone: 'var(--warn)' },
-    { key: 'reauthored', label: 'Re-authored', tone: 'var(--brand)' },
+    { key: 'staled', label: 'Marked out of date', tone: 'var(--warn)' },
+    { key: 'reauthored', label: 'Rewritten after a change', tone: 'var(--brand)' },
     { key: 'retired', label: 'Retired', tone: 'var(--slate-300)' },
   ];
   const cl = release.changelog ?? {};
   return (
     <div className="card" style={{ padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
-        <h3 style={{ font: '600 14px/1.2 var(--font-sans)', color: 'var(--text-1)', letterSpacing: '-0.01em' }}>Changelog</h3>
+        <h3 style={{ font: '600 14px/1.2 var(--font-sans)', color: 'var(--text-1)', letterSpacing: '-0.01em' }}>In this release</h3>
         <span style={{ font: '500 11px/1 var(--font-mono)', color: 'var(--text-3)' }}>
           {release.base_version ?? '∅'} → {release.version}
         </span>
@@ -148,17 +148,15 @@ export function Releases({ actor, onMutate }: { actor: User | null; onMutate: ()
     <div className="scr-scroll">
       <div className="scr scr-wide">
         <ScreenHead
-          title="Evaluation & Release Gate"
+          title="Releases"
           intro={
             <span>
-              <span className="hl">Nothing ships without a passing gate.</span> A candidate assembles the approved rules since the
-              last release. All five checks must be green before publish — every check, every case. The block is enforced in the
-              record itself, not the interface.
+              <span className="hl">Nothing ships until every check passes.</span> A draft release gathers everything approved since the last one. Five checks must all be green before it can go out, and the block is built into the system itself, not just this screen.
             </span>
           }
         >
-          <Stat n={release?.version ?? '—'} label={release ? release.status.replace('_', ' ') : 'no release'} tone="brand" />
-          <Stat n={detail?.pins?.length ?? 0} label="Rules pinned" />
+          <Stat n={release?.version ?? '—'} label={release ? (RELEASE_STATUS_LABEL[release.status] ?? release.status) : 'no release'} tone="brand" />
+          <Stat n={detail?.pins?.length ?? 0} label="Rules included" />
           <Stat n={checks ? `${(checks ?? []).filter((c: any) => c.passed).length}/${checks.length}` : '—'} label="Checks passing" tone={failing ? 'warn' : 'ok'} />
           <Stat n={failing} label="Checks failing" tone="block" />
         </ScreenHead>
@@ -167,13 +165,13 @@ export function Releases({ actor, onMutate }: { actor: User | null; onMutate: ()
           <select className="fc-input" style={{ width: 'auto', padding: '6px 10px', font: '500 12px/1 var(--font-mono)' }} value={selected ?? ''} onChange={(e) => setSelected(e.target.value)}>
             {releases.map((r) => (
               <option key={r.version} value={r.version}>
-                {r.version} · {r.status}
+                {r.version} · {RELEASE_STATUS_LABEL[r.status] ?? r.status}
               </option>
             ))}
           </select>
           {canAssemble && (
             <Button variant="secondary" icon="layers" disabled={busy} onClick={assemble}>
-              Assemble candidate
+              Prepare a release
             </Button>
           )}
           {error && <span style={{ font: '500 12px/1.4 var(--font-sans)', color: 'var(--block-text, #B91C1C)' }}>{error}</span>}
@@ -190,35 +188,35 @@ export function Releases({ actor, onMutate }: { actor: User | null; onMutate: ()
               <div>
                 <div className="pb-t">
                   {release.status === 'published'
-                    ? `Published — checksum ${detail?.exports?.[0]?.checksum?.slice(0, 16) ?? ''}…`
+                    ? `Published — fingerprint ${detail?.exports?.[0]?.checksum?.slice(0, 16) ?? ''}…`
                     : release.status === 'eval_passed'
-                      ? 'Gate clear — ready to publish'
+                      ? 'All checks green — ready to publish'
                       : release.status === 'eval_failed'
-                        ? `Publish blocked — ${failing || 'a'} check failing`
-                        : `Candidate ${release.status.replace('_', ' ')}`}
+                        ? `Publishing blocked — ${failing || 'a'} check failing`
+                        : `Draft release: ${RELEASE_STATUS_LABEL[release.status] ?? release.status}`}
                 </div>
                 <div className="pb-d">
                   {release.status === 'published'
-                    ? `Seam ${release.version} is pinned, immutable and exported. Re-export reproduces the identical bundle.`
+                    ? `Rulebook ${release.version} is locked for good and can always be reproduced exactly as shipped.`
                     : release.status === 'eval_failed'
                       ? 'Fix the failing case and re-run the gate, or pull the offending rule from the next candidate.'
                       : release.status === 'eval_passed'
-                        ? `Seam ${release.version} can be published to the bundle.`
+                        ? `Rulebook ${release.version} is ready to go out.`
                         : 'Run the gate to evaluate this candidate.'}
                 </div>
               </div>
               <span style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
                 {['staged', 'eval_failed', 'eval_passed'].includes(release.status) && (
                   <Button variant="secondary" icon="refresh" disabled={busy} onClick={gate}>
-                    {checks ? 'Re-run gate' : 'Run gate'}
+                    {checks ? 'Run the checks again' : 'Run the checks'}
                   </Button>
                 )}
-                {release.status !== 'published' && (
+                {release.status !== 'published' && release.status !== 'deprecated' && (
                   <Button
                     variant="primary"
                     icon="send"
                     disabled={blocked || busy || !isLead}
-                    title={!isLead ? 'Practice Lead publishes' : undefined}
+                    title={!isLead ? 'Only the practice lead can publish' : undefined}
                     style={blocked || !isLead ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
                     onClick={publish}
                   >
@@ -230,18 +228,18 @@ export function Releases({ actor, onMutate }: { actor: User | null; onMutate: ()
 
             <div className="rel-grid">
               <div data-tour="gate-checks">
-                <div className="md-list-h">Gate checks</div>
+                <div className="md-list-h">The five checks</div>
                 {(checks ?? []).map((c: any) => (
                   <GateCheck key={c.id} check={c} open={!!open[c.id]} onToggle={() => setOpen((o) => ({ ...o, [c.id]: !o[c.id] }))} />
                 ))}
                 {!checks && (
                   <div className="card" style={{ padding: '16px 20px', font: '400 13px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
-                    The gate has not run on this candidate yet.
+                    The checks have not run on this draft yet.
                   </div>
                 )}
               </div>
               <div data-tour="changelog">
-                <div className="md-list-h">Release contents</div>
+                <div className="md-list-h">What changed</div>
                 <Changelog release={release} />
               </div>
             </div>

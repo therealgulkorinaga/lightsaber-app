@@ -8,10 +8,10 @@ import { Badge, Button, Rid, ScreenHead, Stat, Status } from '../primitives.tsx'
 import { get, post, type User } from '../api.ts';
 
 function watchBadge(state: string) {
-  if (state === 'triggered' || state === 'reauthoring') return <Badge tone="warn">{state}</Badge>;
-  if (state === 'overdue') return <Badge tone="block">overdue</Badge>;
+  if (state === 'triggered' || state === 'reauthoring') return <Badge tone="warn">{state === 'reauthoring' ? 'being rewritten' : 'change happened'}</Badge>;
+  if (state === 'overdue') return <Badge tone="block">overdue check-in</Badge>;
   if (state === 'resolved') return <Badge tone="ok">resolved</Badge>;
-  return <Badge tone="neutral">monitoring</Badge>;
+  return <Badge tone="neutral">watching</Badge>;
 }
 
 export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () => void }) {
@@ -65,36 +65,34 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
     <div className="scr-scroll">
       <div className="scr scr-wide">
         <ScreenHead
-          title="Regime Watch"
+          title="Watchlist"
           intro={
             <span>
-              <span className="hl">The maintenance surface.</span> A watch item ties a regime movement to the rules that depend
-              on it. When it triggers, the dependents stale, the impact report names who is exposed, re-authoring tasks open and
-              the SLA clocks start — one atomic act.
+              <span className="hl">Where we track the law changing.</span> Each alert ties an expected change to the rules that depend on it. When the change happens, those rules are marked out of date, the impact report names every client affected, rewrite tasks open and the response clocks start — all in one step.
             </span>
           }
         >
-          <Stat n={items.length} label="Watch items" />
-          <Stat n={triggered} label="In re-authoring" tone="warn" />
-          <Stat n={overdue} label="Overdue re-verify" tone="block" />
-          <Stat n={items.reduce((a, w) => a + (w.rule_ids?.length ?? 0), 0)} label="Dependent rules" tone="brand" />
+          <Stat n={items.length} label="Alerts" />
+          <Stat n={triggered} label="Being rewritten" tone="warn" />
+          <Stat n={overdue} label="Overdue a check-in" tone="block" />
+          <Stat n={items.reduce((a, w) => a + (w.rule_ids?.length ?? 0), 0)} label="Rules being watched" tone="brand" />
         </ScreenHead>
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
           {canCheck && (
             <Button variant="secondary" icon="refresh" onClick={() => act(() => post('/api/watch/check'))}>
-              Run check pass
+              Check all dates now
             </Button>
           )}
           <span style={{ font: '400 11.5px/1.4 var(--font-sans)', color: 'var(--text-3)' }}>
-            Date triggers fire, overdue re-verifies flag, aged claims stale. Idempotent; also runs when the API starts.
+            Due dates fire, missed check-ins get flagged, aged product facts are marked out of date. Safe to run any time; it also runs when the system starts.
           </span>
           {error && <span style={{ font: '500 12px/1.4 var(--font-sans)', color: 'var(--block-text, #B91C1C)' }}>{error}</span>}
         </div>
 
         <div className="md">
           <div data-tour="watch-list">
-            <div className="md-list-h">Watch list</div>
+            <div className="md-list-h">Alerts</div>
             <div className="md-list">
               {items.map((w) => (
                 <button key={w.id} className="watch-item" data-active={w.id === sel || undefined} data-state={w.status} onClick={() => setSel(w.id)}>
@@ -105,10 +103,10 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
                   <div className="watch-title">{w.trigger_type === 'event' ? w.event_description : `Date: ${w.trigger_date?.slice(0, 10)}`}</div>
                   <div className="watch-meta">
                     <span>
-                      <span className="k">re-verify</span> {w.reverify_date?.slice(0, 10) ?? '—'}
+                      <span className="k">check in by</span> {w.reverify_date?.slice(0, 10) ?? '—'}
                     </span>
                     <span style={{ marginLeft: 'auto' }}>
-                      <span className="k">open tasks</span> {w.open_tasks}
+                      <span className="k">rewrites open</span> {w.open_tasks}
                     </span>
                   </div>
                 </button>
@@ -129,7 +127,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
                 </div>
                 <div className="imp-sec" style={{ borderTop: 'none' }}>
                   <div className="imp-h">
-                    <span className="t">{item.trigger_type === 'event' ? 'Trigger event' : 'Trigger date'}</span>
+                    <span className="t">{item.trigger_type === 'event' ? 'What we are waiting for' : 'When it takes effect'}</span>
                   </div>
                   <p style={{ font: '400 13px/1.6 var(--font-sans)', color: 'var(--text-2)' }}>
                     {item.trigger_type === 'event' ? item.event_description : item.trigger_date?.slice(0, 10)}
@@ -137,24 +135,24 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
                 </div>
                 <div className="imp-sec">
                   <div className="imp-h">
-                    <span className="t">Re-verify action (the movement note)</span>
+                    <span className="t">What to do when it moves</span>
                   </div>
                   <p style={{ font: '400 13px/1.6 var(--font-sans)', color: 'var(--text-2)' }}>{item.reverify_action}</p>
                 </div>
                 <div className="imp-sec" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   {canMark && ['armed', 'overdue'].includes(item.status) && (
-                    <Button variant="primary" icon="flag" onClick={() => { if (confirm('Mark the event as occurred? Dependent rules stale and SLA clocks start.')) act(() => post(`/api/watch/${item.id}/trigger`)); }}>
-                      Mark triggered
+                    <Button variant="primary" icon="flag" onClick={() => { if (confirm('Has this change actually happened? The rules it touches will be marked out of date and the response clocks start.')) act(() => post(`/api/watch/${item.id}/trigger`)); }}>
+                      It has happened
                     </Button>
                   )}
                   {canCheck && ['armed', 'overdue'].includes(item.status) && (
                     <Button variant="secondary" icon="check" onClick={() => act(() => post(`/api/watch/${item.id}/checked`))}>
-                      Checked, no movement
+                      Checked — no change yet
                     </Button>
                   )}
                   {item.status === 'overdue' && (
                     <span style={{ marginLeft: 'auto', font: '500 11.5px/1.4 var(--font-sans)', color: 'var(--block-text, #B91C1C)' }}>
-                      Re-verify date passed with no action
+                      The check-in date passed with no action
                     </span>
                   )}
                 </div>
@@ -169,7 +167,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
                   </span>
                   <div>
                     <div className="ib-t">
-                      Triggered {impact.watch_item.triggered_at?.slice(0, 16).replace('T', ' ')} · impact report
+                      Change confirmed {impact.watch_item.triggered_at?.slice(0, 16).replace('T', ' ')} · who and what it touches
                     </div>
                     <div className="ib-d">{impact.watch_item.reverify_action}</div>
                   </div>
@@ -177,7 +175,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
 
                 <div className="imp-sec">
                   <div className="imp-h">
-                    <span className="t">Rules staled & re-authoring</span>
+                    <span className="t">Rules now out of date</span>
                     <span className="c">{impact.staled_rules.length}</span>
                   </div>
                   {impact.staled_rules.map((r: any) => (
@@ -185,7 +183,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
                       <Rid>{r.rule_id}</Rid>
                       <div className="grow">
                         <div className="r-title">{r.title}</div>
-                        <div className="r-sub">task {r.task_status}</div>
+                        <div className="r-sub">rewrite {r.task_status}</div>
                       </div>
                       <Status state={r.rule_status} />
                     </div>
@@ -194,7 +192,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
 
                 <div className="imp-sec">
                   <div className="imp-h">
-                    <span className="t">Tenants on affected versions</span>
+                    <span className="t">Clients running affected versions</span>
                     <span className="c">{impact.tenants.length}</span>
                   </div>
                   {impact.tenants.length ? (
@@ -206,7 +204,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
                         <div className="grow">
                           <div className="r-title">{t.name}</div>
                         </div>
-                        <Badge tone="neutral" mono>seam {t.release_version}</Badge>
+                        <Badge tone="neutral" mono>rulebook {t.release_version}</Badge>
                       </div>
                     ))
                   ) : (
@@ -216,7 +214,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
 
                 <div className="imp-sec">
                   <div className="imp-h">
-                    <span className="t">Artifacts that cited these rules</span>
+                    <span className="t">Past documents that relied on these rules</span>
                     <span className="c">{impact.audit_pulls.length}</span>
                   </div>
                   {impact.audit_pulls.length ? (
@@ -227,7 +225,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
                         </span>
                         <div className="grow">
                           <div className="r-title">{a.artifact_ref}{a.tenant_name ? ` · ${a.tenant_name}` : ''}</div>
-                          <div className="r-sub">cited @ seam {a.cited_release_version} · {a.generated_at?.slice(0, 10)}</div>
+                          <div className="r-sub">relied on rulebook {a.cited_release_version} · {a.generated_at?.slice(0, 10)}</div>
                         </div>
                       </div>
                     ))
@@ -237,8 +235,7 @@ export function Watch({ actor, onMutate }: { actor: User | null; onMutate: () =>
                 </div>
 
                 <div className="imp-sec" style={{ font: '400 12px/1.6 var(--font-sans)', color: 'var(--text-3)' }}>
-                  Re-author each staled rule in Authoring; approval closes its task, the last closure resolves this item, and the
-                  next published release carries the re-authored text to the fleet.
+                  Rewrite each out-of-date rule in Write rules; approval closes its task, the last closure resolves this alert, and the next published release carries the new text to every client.
                 </div>
               </div>
             )}

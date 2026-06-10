@@ -62,12 +62,30 @@ export function Rid({ children, size, ghost }: { children: ReactNode; size?: 'lg
 // Lifecycle status — colour and label by state, never size.
 const STATUS_LABEL: Record<string, string> = {
   draft: 'draft',
-  in_review: 'in review',
-  returned: 'returned',
+  in_review: 'awaiting approval',
+  returned: 'sent back',
   approved: 'approved',
-  active: 'active',
-  stale: 'stale',
+  active: 'live',
+  stale: 'out of date',
   retired: 'retired',
+};
+
+// Plain names for the rule types and release states the API uses.
+export const KIND_LABEL: Record<string, string> = {
+  regulatory: 'regulation',
+  icp: 'fit scoring',
+  objection: 'objection answer',
+  messaging: 'messaging',
+  claim: 'product fact',
+};
+export const RELEASE_STATUS_LABEL: Record<string, string> = {
+  draft: 'in preparation',
+  staged: 'ready for checks',
+  eval_running: 'checks running',
+  eval_passed: 'checks passed',
+  eval_failed: 'checks failed',
+  published: 'published',
+  deprecated: 'superseded',
 };
 
 export function Status({ state }: { state: string }) {

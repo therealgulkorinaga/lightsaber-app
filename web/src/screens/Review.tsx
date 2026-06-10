@@ -3,7 +3,7 @@
 // returns it with notes. Nothing reaches a tenant from here directly.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Badge, Button, CardHead, Rid, ScreenHead, Stat, Status } from '../primitives.tsx';
+import { Badge, Button, CardHead, Rid, ScreenHead, Stat, Status, KIND_LABEL } from '../primitives.tsx';
 import { get, post, type User } from '../api.ts';
 
 export function Review({ actor, onMutate }: { actor: User | null; onMutate: () => void }) {
@@ -47,7 +47,7 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
   };
 
   const giveBack = async (ruleId: string) => {
-    const notes = window.prompt('Return with notes for the author (required):');
+    const notes = window.prompt('What should the author fix? Your notes go back with it:');
     if (!notes) return;
     setError(null);
     try {
@@ -66,17 +66,15 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
     <div className="scr-scroll">
       <div className="scr scr-wide">
         <ScreenHead
-          title="Review queue"
+          title="Approvals"
           intro={
             <span>
-              <span className="hl">Rules submitted for review.</span> A reviewer reads each one, then approves it into the next
-              release candidate. The author of a version never reviews their own work; substance always takes a second
-              qualified pair of eyes.
+              <span className="hl">Everything waiting for a second pair of eyes.</span> An approver reads each item, then approves it into the next release or sends it back with notes. Nobody can approve their own work.
             </span>
           }
         >
-          <Stat n={inReview.length} label="Awaiting review" tone="accent" />
-          <Stat n={approved.length} label="Approved, unreleased" tone="ok" />
+          <Stat n={inReview.length} label="Waiting for approval" tone="accent" />
+          <Stat n={approved.length} label="Approved, not yet released" tone="ok" />
         </ScreenHead>
 
         {error && (
@@ -86,10 +84,10 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
         )}
 
         <div className="card" data-tour="queue-card">
-          <CardHead title="Submitted rules" sub="Newest first" />
+          <CardHead title="Rules waiting" sub="Newest first" />
           {queue.length === 0 && (
             <div style={{ padding: '18px 20px', font: '400 13px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
-              Nothing in review. Approved rules stage here until the next candidate assembles.
+              Nothing waiting. Approved rules sit here until the next release is prepared.
             </div>
           )}
           {queue.map((q) => {
@@ -102,12 +100,12 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
                     {q.title}{' '}
                     {own && (
                       <span style={{ font: '400 11px/1 var(--font-sans)', color: 'var(--accent-700)', marginLeft: 6 }}>
-                        · your submission
+                        · yours
                       </span>
                     )}
                   </div>
                   <div className="r-sub">
-                    {q.kind}
+                    {KIND_LABEL[q.kind] ?? q.kind}
                     {q.regime ? ` · ${q.regime}` : ''} · v{q.semver_at_author} · {q.author_name}
                     {q.submitted_at ? ` · ${new Date(q.submitted_at).toLocaleString()}` : ''}
                     {q.review_state === 'approved' && q.reviewer_name ? ` · approved by ${q.reviewer_name}` : ''}
@@ -117,7 +115,7 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
                 {q.review_state === 'in_review' && canReview && !own && (
                   <>
                     <Button variant="secondary" size="sm" onClick={() => giveBack(q.rule_id)}>
-                      Return
+                      Send back
                     </Button>
                     <Button variant="primary" size="sm" onClick={() => approve(q.rule_id)}>
                       Approve
@@ -126,11 +124,11 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
                 )}
                 {q.review_state === 'in_review' && canReview && !own && (
                   <Button variant="ghost" size="sm" onClick={() => preScreen(q.rule_id)}>
-                    Pre-screen
+                    Ask the assistant
                   </Button>
                 )}
                 {q.review_state === 'in_review' && own && (
-                  <span style={{ font: '400 11.5px/1.4 var(--font-sans)', color: 'var(--text-3)' }}>awaits a separate reviewer</span>
+                  <span style={{ font: '400 11.5px/1.4 var(--font-sans)', color: 'var(--text-3)' }}>needs someone other than you</span>
                 )}
               </div>
             );
@@ -138,7 +136,7 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
           {Object.entries(advisories).map(([ruleId, adv]: [string, any]) => (
             <div key={ruleId} style={{ margin: '0 20px 14px', padding: '12px 14px', background: 'var(--slate-50)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
               <div style={{ font: '600 12px/1.4 var(--font-sans)', marginBottom: 6 }}>
-                Assistant pre-screen of {ruleId} <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>· advisory only; the decision is yours and is recorded against it</span>
+                The assistant's read on {ruleId} <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>· advice only; the decision is yours and goes on the record</span>
               </div>
               {['authority_checkable', 'overreach', 'advice_drift'].map((k) => (
                 <div key={k} style={{ font: '400 12px/1.6 var(--font-sans)', color: 'var(--text-2)' }}>
@@ -153,7 +151,7 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
         </div>
 
         <div className="card" style={{ marginTop: 16 }}>
-          <CardHead title="Tenant claims in review" sub="Claims are substance: same two-person rule, same lint, tenant-isolated" />
+          <CardHead title="Client product facts waiting" sub="Facts a client wants the sales engine to say about their product: same second-approver rule, same style checks" />
           {claims.map((c: any) => {
             const own = c.author_id === actor?.id;
             const act = async (verb: string, body?: any) => {
@@ -175,8 +173,8 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
                 <Status state="in_review" />
                 {canReview && !own && (
                   <>
-                    <Button variant="secondary" size="sm" onClick={() => { const notes = window.prompt('Return with notes for the author (required):'); if (notes) act('return', { notes }); }}>
-                      Return
+                    <Button variant="secondary" size="sm" onClick={() => { const notes = window.prompt('What should the author fix? Your notes go back with it:'); if (notes) act('return', { notes }); }}>
+                      Send back
                     </Button>
                     <Button variant="primary" size="sm" onClick={() => act('approve')}>
                       Approve
@@ -188,7 +186,7 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
           })}
           {!claims.length && (
             <div style={{ padding: '14px 20px', font: '400 12.5px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
-              No claims awaiting review.
+              No product facts waiting.
             </div>
           )}
         </div>
