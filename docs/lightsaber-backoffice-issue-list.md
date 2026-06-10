@@ -122,7 +122,7 @@ AC: see E4.1.
 
 **E2.6 Watch UI: full surface** ✅
 Trigger/mark/check actions, impact report panel (design's ImpactReport),
-re-authoring task list with open-in-authoring links, overdue badges.
+re-authoring task states inline, overdue badges.
 AC: matches design Watch screen including impact layout.
 
 ---
@@ -165,10 +165,11 @@ Backlog item pulls into scope: status in_authoring with the draft rule linked;
 publishing the rule's release closes the gap.
 AC: gap lifecycle terminal states correct; closure automatic on publish.
 
-**E3.7 Coverage UI (design port, wired)** ✅
-Matrix with depth/freshness legend; ranked backlog with triage actions and
-"Author"/"Draft with assist" affordances.
-AC: matches design Coverage screen layout.
+**E3.7 Coverage UI (design port, wired)** 🔶
+Matrix with depth/freshness/gap-pressure legend; ranked backlog with triage
+and estimate actions; critic surface alongside.
+Status: shipped; the "Author from gap" / "Draft with assist" backlog buttons
+land with the objection-editor follow-up (see E6.7).
 
 ---
 
