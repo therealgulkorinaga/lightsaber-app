@@ -118,9 +118,10 @@ describe('Component A: authoring through the schema and lint', () => {
          JOIN shared.regime g ON g.code = r.regime
          JOIN roots ON roots.leaf = t.jurisdiction_tag
         WHERE r.kind = 'regulatory' AND cardinality(g.jurisdictions) > 0
+          AND r.status NOT IN ('draft', 'in_review', 'returned') -- in-flight drafts are caught at submit
           AND NOT roots.root = ANY(g.jurisdictions)`,
     );
-    expect(rows).toEqual([]); // no seeded rule pairs a tag with a foreign regime
+    expect(rows).toEqual([]); // no approved rule pairs a tag with a foreign regime
   });
 
   it('an unknown prospect field is flagged before submission (FR-A.4)', async () => {
