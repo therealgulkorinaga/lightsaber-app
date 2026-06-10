@@ -10,6 +10,7 @@ export interface Actor {
   id: string;
   name: string;
   role: 'author' | 'reviewer' | 'practice_lead' | 'analyst' | 'tenant_admin';
+  tenant_id: string | null; // set for tenant_admin: the one tenant they reach
 }
 
 declare module 'fastify' {
@@ -24,7 +25,7 @@ export async function authPlugin(req: FastifyRequest, reply: FastifyReply) {
     return reply.code(401).send({ error: 'X-User-Id header required (dev user-switcher)' });
   }
   const { rows } = await pool.query(
-    `SELECT id, name, role FROM shared.app_user WHERE id = $1 AND status = 'active'`,
+    `SELECT id, name, role, tenant_id FROM shared.app_user WHERE id = $1 AND status = 'active'`,
     [userId],
   );
   if (!rows.length) return reply.code(401).send({ error: 'Unknown or disabled user' });

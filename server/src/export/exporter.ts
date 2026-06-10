@@ -49,8 +49,12 @@ function renderEvalsJson(cases: any[]): string {
 export async function exportLive(client: pg.PoolClient | pg.Pool): Promise<Map<string, string>> {
   const files = new Map<string, string>();
 
+  // Staleness overlays the immutable version: a rule the watch staled renders
+  // `status: stale` live, without touching authored content (FR-C.4).
   const { rows: ruleRows } = await client.query(
-    `SELECT r.rule_id, r.kind, r.regime, r.scope, v.*
+    `SELECT r.rule_id, r.kind, r.regime, r.scope, v.*,
+            CASE WHEN r.status = 'stale' AND v.status_at_version = 'active' THEN 'stale'
+                 ELSE v.status_at_version END AS status_at_version
        FROM shared.rule r
        JOIN shared.rule_version v ON v.id = r.current_version_id`,
   );
@@ -100,8 +104,11 @@ export async function exportRelease(
 ): Promise<Map<string, string>> {
   const files = new Map<string, string>();
 
+  // The pinned overlay, frozen at assembly, keeps past releases byte-stable
+  // while post-trigger candidates carry `status: stale` (FR-C.4, FR-G.3).
   const { rows: ruleRows } = await client.query(
-    `SELECT r.rule_id, r.kind, r.regime, r.scope, v.*
+    `SELECT r.rule_id, r.kind, r.regime, r.scope, v.*,
+            COALESCE(p.status_override, v.status_at_version) AS status_at_version
        FROM shared.release_rule_version p
        JOIN shared.rule_version v ON v.id = p.rule_version_id
        JOIN shared.rule r ON r.rule_id = v.rule_id

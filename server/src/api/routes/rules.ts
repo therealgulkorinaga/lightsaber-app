@@ -7,6 +7,7 @@ import { canApproveSubstance, requireRole } from '../lib/auth.ts';
 import { validateDraft, type DraftInput, lintableFields, PROSPECT_FIELDS } from '../lib/validate.ts';
 import { contentHash, renderRuleBlock, type RuleRender } from '../../seam/render.ts';
 import { lintFields, BANNED_WORDS } from '@lightsaber/voice-lint';
+import { closeReauthorTasks } from './watch.ts';
 import type pg from 'pg';
 
 const KIND_FILE: Record<string, string> = {
@@ -339,12 +340,13 @@ export function rulesRoutes(app: FastifyInstance) {
       } = await client.query(
         `INSERT INTO shared.rule_version
            (rule_id, semver_at_author, title, statement, buyer_reading, authority_summary,
-            applicability, inputs_required, jurisdiction_tags, kind_fields, movement_note, author_id)
-         VALUES ($1,'1.0',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+            applicability, inputs_required, jurisdiction_tags, kind_fields, movement_note, author_id, ai_assisted)
+         VALUES ($1,'1.0',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
         [
           d.rule_id, cols.title, cols.statement, cols.buyer_reading, cols.authority_summary,
           cols.applicability, cols.inputs_required, cols.jurisdiction_tags,
           JSON.stringify(cols.kind_fields), cols.movement_note, req.actor.id,
+          (req.body as any).ai_assisted === true, // provenance: agent-drafted, human-accepted (FR-AI.6)
         ],
       );
       await client.query(`UPDATE shared.rule SET current_version_id = $1 WHERE rule_id = $2`, [v.id, d.rule_id]);
@@ -448,6 +450,24 @@ export function rulesRoutes(app: FastifyInstance) {
     });
   });
 
+  // Tick a source as read (the anchoring control, FR-AI.6).
+  app.post('/api/rules/:ruleId/sources/:sourceId/verify', async (req, reply) => {
+    const { ruleId, sourceId } = req.params as { ruleId: string; sourceId: string };
+    return withTx(async (client) => {
+      const open = await openVersion(client, ruleId);
+      if (!open) return reply.code(409).send({ error: 'No open version' });
+      if (open.author_id !== req.actor.id) return reply.code(403).send({ error: 'The author verifies their own sources; that is the point' });
+      const { rows } = await client.query(
+        `UPDATE shared.source SET verified_by = $1, verified_at = now()
+          WHERE id = $2 AND rule_version_id = $3 RETURNING citation`,
+        [req.actor.id, sourceId, open.id],
+      );
+      if (!rows.length) return reply.code(404).send({ error: 'No such source on the open version' });
+      await audit(client, { object_type: 'rule', object_id: ruleId, action: 'source_verified', actor_id: req.actor.id, detail: { source_id: sourceId, citation: rows[0].citation } });
+      return { ok: true };
+    });
+  });
+
   // Record a lint override with its reason (FR-A.5 AC).
   app.post('/api/rules/:ruleId/lint-overrides', async (req, reply) => {
     const { ruleId } = req.params as { ruleId: string };
@@ -505,6 +525,22 @@ export function rulesRoutes(app: FastifyInstance) {
       ).filter((f) => f.level === 'block');
       if (findings.length) return reply.code(422).send({ error: 'Submission blocked', findings });
 
+      // Anchoring control (FR-AI.6): an AI-assisted draft submits only after
+      // its author has ticked every source as read. Acceptance is a
+      // verification act, above all on the Authority.
+      if (open.ai_assisted) {
+        const { rows: unread } = await client.query(
+          `SELECT citation FROM shared.source WHERE rule_version_id = $1 AND verified_by IS NULL`,
+          [open.id],
+        );
+        if (unread.length) {
+          return reply.code(422).send({
+            error: 'This draft began as an assistant draft; tick each source as read before it goes for review',
+            findings: unread.map((u) => ({ level: 'block', code: 'source_unverified', field: 'sources', message: `Unread: ${u.citation}` })),
+          });
+        }
+      }
+
       // FR-A.7: an unchanged submission is a no-op. Compare content with the
       // version token normalised, or the semver bump alone would defeat it.
       if (open.supersedes_version_id) {
@@ -554,10 +590,15 @@ export function rulesRoutes(app: FastifyInstance) {
         `UPDATE shared.rule_version SET review_state='approved', reviewer_id=$1, approved_at=now() WHERE id=$2`,
         [req.actor.id, open.id],
       );
+      // A stale rule with an approved re-author returns to the staging path
+      // (active on the next published release, 5.1 / FR-C.5).
       await client.query(
-        `UPDATE shared.rule SET current_version_id=$1, status = CASE WHEN status IN ('draft','in_review','returned') THEN 'approved' ELSE status END WHERE rule_id=$2`,
+        `UPDATE shared.rule SET current_version_id=$1,
+                status = CASE WHEN status IN ('draft','in_review','returned','stale') THEN 'approved' ELSE status END
+          WHERE rule_id=$2`,
         [open.id, ruleId],
       );
+      await closeReauthorTasks(client, ruleId, open.id, req.actor.id);
       // jurisdiction registry rows for querying
       await client.query(`DELETE FROM shared.rule_jurisdiction WHERE rule_id = $1`, [ruleId]);
       for (const tag of open.jurisdiction_tags ?? []) {
@@ -622,6 +663,17 @@ export function rulesRoutes(app: FastifyInstance) {
                AND NOT EXISTS (SELECT 1 FROM shared.release_rule_version p WHERE p.rule_version_id = v.id))
         ORDER BY v.submitted_at DESC NULLS LAST`,
     );
-    return { queue: rows };
+    const { rows: claims } = await pool.query(
+      `SELECT c.claim_id AS rule_id, c.title, c.version::text AS semver_at_author, c.review_state,
+              c.submitted_at, c.approved_at, c.author_user_id AS author_id, a.name AS author_name,
+              r2.name AS reviewer_name, 'claim' AS kind, t.name AS regime, c.tenant_id
+         FROM tenant.claim c
+         JOIN tenant.tenant t ON t.id = c.tenant_id
+         LEFT JOIN shared.app_user a ON a.id = c.author_user_id
+         LEFT JOIN shared.app_user r2 ON r2.id = c.reviewer_user_id
+        WHERE c.review_state = 'in_review'
+        ORDER BY c.submitted_at DESC NULLS LAST`,
+    );
+    return { queue: rows, claims };
   });
 }

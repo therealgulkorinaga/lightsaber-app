@@ -7,6 +7,14 @@ export const DATABASE_URL =
 
 export const pool = new Pool({ connectionString: DATABASE_URL });
 
+// Server sessions are practice-side by default: tenant tables sit behind
+// forced RLS and require the context GUC. Queries on a connection are
+// serialised, so this runs before anything else the client executes.
+// Tenant-scoped paths override with SET LOCAL inside their transaction.
+pool.on('connect', (client) => {
+  client.query(`SET app.is_practice = 'true'`).catch(() => {});
+});
+
 /** Run fn inside a transaction on a dedicated client. */
 export async function withTx<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();

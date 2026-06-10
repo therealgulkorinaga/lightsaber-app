@@ -45,7 +45,14 @@ export function auditRoutes(app: FastifyInstance) {
   // seam version it cited, reconstruct the exact rule text, authority and
   // status live in that version, reading the release pins, never live rules.
   app.post('/api/defensibility', async (req, reply) => {
-    const body = req.body as { artifact_ref: string; release_version: string; artifact_text?: string; rule_ids?: string[] };
+    const body = req.body as {
+      artifact_ref: string;
+      release_version: string;
+      artifact_text?: string;
+      rule_ids?: string[];
+      tenant_id?: string;
+      deal_closed?: boolean;
+    };
     if (!body?.artifact_ref || !body?.release_version) {
       return reply.code(422).send({ error: 'artifact_ref and release_version are required' });
     }
@@ -68,7 +75,8 @@ export function auditRoutes(app: FastifyInstance) {
       }
 
       const { rows: pinned } = await client.query(
-        `SELECT r.rule_id, r.kind, r.regime, r.scope, v.*, a.name AS author_name, rv.name AS reviewer_name
+        `SELECT r.rule_id, r.kind, r.regime, r.scope, v.*, a.name AS author_name, rv.name AS reviewer_name,
+                COALESCE(p.status_override, v.status_at_version) AS status_at_version
            FROM shared.release_rule_version p
            JOIN shared.rule_version v ON v.id = p.rule_version_id
            JOIN shared.rule r ON r.rule_id = v.rule_id
@@ -112,6 +120,9 @@ export function auditRoutes(app: FastifyInstance) {
             approved_at: p.approved_at,
             change_note: p.change_note,
             content_hash: p.content_hash,
+            // FR-AI.6: a human wrote this from scratch, or a human accepted it
+            // from an assistant draft. The report shows which.
+            authorship: p.ai_assisted ? 'agent-drafted, human-verified and accepted' : 'human-authored',
           },
         };
       });
@@ -127,25 +138,31 @@ export function auditRoutes(app: FastifyInstance) {
         rules: entries,
         boundary: NOT_LEGAL_ADVICE,
       };
+      // FR-X.1: every report records an audit pull. Tenant-scoped when pulled
+      // by a tenant admin or for a named tenant; practice-scoped otherwise.
+      const tenantId = req.actor.role === 'tenant_admin' ? (req.actor as any).tenant_id : (body.tenant_id ?? null);
+      const dealClosed = body.deal_closed === true;
+      await client.query(
+        `INSERT INTO tenant.audit_pull (tenant_id, artifact_ref, cited_release_version, requested_by, rule_ids, deal_closed)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [tenantId, body.artifact_ref, body.release_version, req.actor.id, ruleIds, dealClosed],
+      );
+      // Success line (FR-H.2): the tenant reports the close.
+      if (tenantId && dealClosed) {
+        await client.query(
+          `INSERT INTO tenant.billing_event (tenant_id, line, trigger_ref) VALUES ($1, 'success', $2)`,
+          [tenantId, `audit pull ${body.artifact_ref} @ ${body.release_version}`],
+        );
+      }
       await audit(pool, {
         object_type: 'defensibility_report',
         object_id: body.artifact_ref,
         action: 'generated',
         actor_id: req.actor.id,
-        detail: { release_version: body.release_version, rule_ids: ruleIds },
+        detail: { release_version: body.release_version, rule_ids: ruleIds, tenant_id: tenantId, deal_closed: dealClosed },
       });
       return report;
     });
   });
 
-  // Watch items, read-only in Phase 1 (the design's Regime Watch screen).
-  app.get('/api/watch', async () => {
-    const { rows } = await pool.query(
-      `SELECT wi.*, u.name AS owner_name,
-              (SELECT array_agg(wr.rule_id ORDER BY wr.rule_id) FROM shared.watch_rule wr WHERE wr.watch_item_id = wi.id) AS rule_ids
-         FROM shared.watch_item wi LEFT JOIN shared.app_user u ON u.id = wi.owner_id
-        ORDER BY wi.created_at`,
-    );
-    return { items: rows };
-  });
 }

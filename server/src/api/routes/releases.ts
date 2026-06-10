@@ -43,12 +43,13 @@ export function releasesRoutes(app: FastifyInstance) {
       if (!rows.length) return reply.code(404).send({ error: `No eval case ${id}` });
       const cur = rows[0];
       await client.query(
-        `UPDATE shared.eval_case SET prompt=$1, expected_output=$2, assertions=$3, jurisdiction_scope=$4 WHERE id=$5`,
+        `UPDATE shared.eval_case SET prompt=$1, expected_output=$2, assertions=$3, jurisdiction_scope=$4, created_by=$5 WHERE id=$6`,
         [
           b.prompt ?? cur.prompt,
           b.expected_output ?? cur.expected_output,
           JSON.stringify(b.assertions ?? cur.assertions),
           b.jurisdiction_scope ?? cur.jurisdiction_scope,
+          req.actor.id, // eval authorship is human by construction (FR-AI.6)
           id,
         ],
       );
@@ -66,8 +67,8 @@ export function releasesRoutes(app: FastifyInstance) {
         rows: [next],
       } = await client.query(`SELECT coalesce(max(id), 0) + 1 AS id FROM shared.eval_case`);
       await client.query(
-        `INSERT INTO shared.eval_case (id, prompt, expected_output, assertions, jurisdiction_scope) VALUES ($1,$2,$3,$4,$5)`,
-        [next.id, b.prompt, b.expected_output, JSON.stringify(b.assertions ?? []), b.jurisdiction_scope ?? []],
+        `INSERT INTO shared.eval_case (id, prompt, expected_output, assertions, jurisdiction_scope, created_by) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [next.id, b.prompt, b.expected_output, JSON.stringify(b.assertions ?? []), b.jurisdiction_scope ?? [], req.actor.id],
       );
       await audit(client, { object_type: 'eval_case', object_id: String(next.id), action: 'created', actor_id: req.actor.id, detail: {} });
       return { id: next.id };
@@ -130,8 +131,14 @@ export function releasesRoutes(app: FastifyInstance) {
       if (exists.length) return reply.code(409).send({ error: `Release ${version} already exists` });
 
       // The staging set: the latest approved version of every non-retired rule.
+      // A rule the watch staled (and no approved re-author yet) pins with the
+      // stale overlay so the bundle renders it stale (FR-C.4).
       const { rows: staged } = await client.query(
-        `SELECT DISTINCT ON (v.rule_id) v.id, v.rule_id, v.status_at_version, v.semver_at_author
+        `SELECT DISTINCT ON (v.rule_id) v.id, v.rule_id, v.semver_at_author,
+                CASE WHEN r.status = 'stale' AND v.status_at_version = 'active' THEN 'stale'
+                     ELSE v.status_at_version END AS status_at_version,
+                CASE WHEN r.status = 'stale' AND v.status_at_version = 'active' THEN 'stale'
+                     ELSE NULL END AS status_override
            FROM shared.rule_version v
            JOIN shared.rule r ON r.rule_id = v.rule_id
           WHERE v.review_state = 'approved' AND r.status <> 'retired'
@@ -139,11 +146,19 @@ export function releasesRoutes(app: FastifyInstance) {
       );
       if (!staged.length) return reply.code(422).send({ error: 'Nothing approved to assemble' });
 
-      // Changelog vs the base release (FR-E.7 AC).
+      // Changelog vs the base release (FR-E.7 AC). Re-authoring is detected
+      // precisely: the staged version closed a re-authoring task (FR-C.5);
+      // base-release comparison alone cannot see staleness that came and went
+      // between releases.
+      const { rows: closedBy } = await client.query(
+        `SELECT DISTINCT closed_by_version_id FROM shared.reauthor_task WHERE closed_by_version_id IS NOT NULL`,
+      );
+      const reauthorVersionIds = new Set(closedBy.map((r) => r.closed_by_version_id));
       let changelog: Record<string, string[]> = { added: [], changed: [], staled: [], reauthored: [], retired: [] };
       if (base) {
         const { rows: basePins } = await client.query(
-          `SELECT v.rule_id, v.id, v.status_at_version FROM shared.release_rule_version p
+          `SELECT v.rule_id, v.id, COALESCE(p.status_override, v.status_at_version) AS status_at_version
+             FROM shared.release_rule_version p
              JOIN shared.rule_version v ON v.id = p.rule_version_id WHERE p.release_version = $1`,
           [base],
         );
@@ -153,8 +168,11 @@ export function releasesRoutes(app: FastifyInstance) {
           const prior = baseById.get(s.rule_id);
           if (!prior) changelog.added.push(s.rule_id);
           else if (prior.id !== s.id) {
-            if (prior.status_at_version === 'stale' && s.status_at_version === 'active') changelog.reauthored.push(s.rule_id);
-            else changelog.changed.push(s.rule_id);
+            if (reauthorVersionIds.has(s.id) || (prior.status_at_version === 'stale' && s.status_at_version === 'active')) {
+              changelog.reauthored.push(s.rule_id);
+            } else {
+              changelog.changed.push(s.rule_id);
+            }
           }
           if (prior && prior.status_at_version !== 'stale' && s.status_at_version === 'stale') changelog.staled.push(s.rule_id);
         }
@@ -170,7 +188,10 @@ export function releasesRoutes(app: FastifyInstance) {
         [version, base, req.actor.id, JSON.stringify(changelog)],
       );
       for (const s of staged) {
-        await client.query(`INSERT INTO shared.release_rule_version (release_version, rule_version_id) VALUES ($1, $2)`, [version, s.id]);
+        await client.query(
+          `INSERT INTO shared.release_rule_version (release_version, rule_version_id, status_override) VALUES ($1, $2, $3)`,
+          [version, s.id, s.status_override],
+        );
       }
 
       // Pin the document/block state.
@@ -282,6 +303,65 @@ export function releasesRoutes(app: FastifyInstance) {
            AND r.status = 'approved' AND v.status_at_version = 'active'`,
         [version],
       );
+
+      // Services hooks (FR-H.1/H.2): a publish that re-authors rules closes the
+      // republish SLA clock and emits the retainer line for every tenant whose
+      // pinned version contained those rules.
+      const {
+        rows: [relRow],
+      } = await client.query(`SELECT changelog FROM shared.seam_release WHERE version = $1`, [version]);
+      const reauthored: string[] = relRow?.changelog?.reauthored ?? [];
+      if (reauthored.length) {
+        const { rows: affected } = await client.query(
+          `SELECT DISTINCT ON (tp.tenant_id) tp.tenant_id
+             FROM tenant.tenant_pin tp
+             JOIN shared.release_rule_version p ON p.release_version = tp.release_version
+             JOIN shared.rule_version rv ON rv.id = p.rule_version_id
+            WHERE rv.rule_id = ANY($1)
+            ORDER BY tp.tenant_id, tp.pinned_at DESC`,
+          [reauthored],
+        );
+        for (const a of affected) {
+          await client.query(
+            `INSERT INTO tenant.billing_event (tenant_id, line, trigger_ref) VALUES ($1, 'retainer', $2)`,
+            [a.tenant_id, `re-authored release ${version}: ${reauthored.join(', ')}`],
+          );
+        }
+        // Close open SLA clocks whose watch items' rules are all re-authored.
+        const { rows: windows } = await client.query(`SELECT value FROM shared.app_config WHERE key = 'sla_windows'`);
+        const w = windows[0]?.value ?? {};
+        const { rows: openSla } = await client.query(
+          `SELECT s.id, s.tier, s.triggered_at, s.stale_flagged_at, s.watch_item_id FROM tenant.sla_event s
+            WHERE s.republished_at IS NULL
+              AND NOT EXISTS (SELECT 1 FROM shared.reauthor_task t
+                               WHERE t.watch_item_id = s.watch_item_id AND t.status = 'open')`,
+        );
+        for (const s of openSla) {
+          const tier = w[s.tier] ?? w.standard ?? { stale_hours: 72, republish_days: 30 };
+          const staleMs = new Date(s.stale_flagged_at).getTime() - new Date(s.triggered_at).getTime();
+          const republishMs = Date.now() - new Date(s.triggered_at).getTime();
+          const breach =
+            staleMs > tier.stale_hours * 3_600_000 || republishMs > tier.republish_days * 86_400_000;
+          await client.query(
+            `UPDATE tenant.sla_event SET republished_at = now(), breach = $1 WHERE id = $2`,
+            [breach, s.id],
+          );
+        }
+      }
+
+      // A backlog gap whose linked rule ships in this release closes (E3.6).
+      const delivered: string[] = [
+        ...(relRow?.changelog?.added ?? []),
+        ...(relRow?.changelog?.changed ?? []),
+        ...(relRow?.changelog?.reauthored ?? []),
+      ];
+      if (delivered.length) {
+        await client.query(
+          `UPDATE tenant.gap_log SET triage_status = 'closed'
+            WHERE triage_status = 'in_authoring' AND linked_rule_id = ANY($1)`,
+          [delivered],
+        );
+      }
 
       const files = await exportRelease(client, version);
       const outDir = path.join(EXPORTS_DIR, version);

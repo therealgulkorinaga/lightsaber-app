@@ -34,7 +34,8 @@ interface CandidateRule {
 
 async function loadCandidate(client: pg.PoolClient | pg.Pool, version: string) {
   const { rows } = await client.query(
-    `SELECT r.rule_id, r.kind, v.id AS version_id, v.status_at_version, v.jurisdiction_tags,
+    `SELECT r.rule_id, r.kind, v.id AS version_id, v.jurisdiction_tags,
+            COALESCE(p.status_override, v.status_at_version) AS status_at_version,
             v.title, v.statement, v.buyer_reading, v.authority_summary, v.applicability,
             v.movement_note, v.kind_fields
        FROM shared.release_rule_version p
