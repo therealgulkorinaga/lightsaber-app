@@ -194,33 +194,47 @@ const JURISDICTION_PREFIX: Record<string, string> = {
   UK: 'UK',
 };
 
+// Prefixes that share one number sequence (NYC-AEDT-003 sits inside the NY run).
+const PREFIX_FAMILY: Record<string, string[]> = {
+  NY: ['NY', 'NYC'],
+  NYC: ['NY', 'NYC'],
+};
+
 export function rulesRoutes(app: FastifyInstance) {
   // The system allocates rule IDs (FR-A.2); authors supply a topic, not an ID.
+  // Numbering is sequential across the regime/jurisdiction family, the corpus
+  // convention: DORA-TPR-001, DORA-REG-002, DORA-CON-003 ... next is -008.
   app.get('/api/rules/suggest-id', async (req, reply) => {
     const q = req.query as { kind?: string; regime?: string; jurisdiction?: string; topic?: string };
     const kind = q.kind ?? 'regulatory';
-    let prefix: string;
-    if (kind === 'icp') prefix = q.topic === 'DQ' ? 'ICP-DQ' : 'ICP';
-    else if (kind === 'objection') prefix = 'OBJ';
-    else if (kind === 'messaging') prefix = 'MSG';
-    else {
-      const topic = (q.topic ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (!topic || topic.length < 2 || topic.length > 6) {
-        return reply.code(422).send({ error: 'Supply a short topic code (2-6 letters), e.g. CON for contracts, OUT for outsourcing' });
-      }
-      const base =
-        q.regime === 'cross_regime'
-          ? (JURISDICTION_PREFIX[q.jurisdiction ?? ''] ?? 'XRG')
-          : (REGIME_PREFIX[q.regime ?? ''] ?? null);
-      if (!base) return reply.code(422).send({ error: `No prefix convention for regime ${q.regime}` });
-      prefix = base === 'XRG' ? 'XRG' : `${base}-${topic}`;
+
+    if (kind !== 'regulatory') {
+      const prefix = kind === 'icp' ? (q.topic === 'DQ' ? 'ICP-DQ' : 'ICP') : kind === 'objection' ? 'OBJ' : 'MSG';
+      const { rows } = await pool.query(`SELECT rule_id FROM shared.rule WHERE rule_id ~ ('^' || $1 || '-[0-9]{3}$')`, [prefix]);
+      const next = rows.reduce((mx, r) => Math.max(mx, Number(r.rule_id.slice(-3))), 0) + 1;
+      return { rule_id: `${prefix}-${String(next).padStart(3, '0')}` };
     }
+
+    const topic = (q.topic ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const base =
+      q.regime === 'cross_regime'
+        ? (JURISDICTION_PREFIX[q.jurisdiction ?? ''] ?? 'XRG')
+        : (REGIME_PREFIX[q.regime ?? ''] ?? null);
+    if (!base) return reply.code(422).send({ error: `No prefix convention for regime ${q.regime}` });
+    if (base !== 'XRG' && (topic.length < 2 || topic.length > 6)) {
+      return reply.code(422).send({ error: 'Supply a short topic code (2-6 letters), e.g. CON for contracts, OUT for outsourcing' });
+    }
+
+    const family = PREFIX_FAMILY[base] ?? [base];
+    // Family-wide sequence: match PREFIX-TOPIC-NNN and bare PREFIX-NNN (XRG, UK-CTP style).
     const { rows } = await pool.query(
-      `SELECT rule_id FROM shared.rule WHERE rule_id ~ ('^' || $1 || '-[0-9]{3}$')`,
-      [prefix],
+      `SELECT rule_id FROM shared.rule
+        WHERE rule_id ~ ('^(' || $1 || ')(-[A-Z0-9]+)?-[0-9]{3}$')`,
+      [family.join('|')],
     );
     const next = rows.reduce((mx, r) => Math.max(mx, Number(r.rule_id.slice(-3))), 0) + 1;
-    return { rule_id: `${prefix}-${String(next).padStart(3, '0')}` };
+    const nnn = String(next).padStart(3, '0');
+    return { rule_id: base === 'XRG' ? `XRG-${nnn}` : `${base}-${topic}-${nnn}` };
   });
 
   // Registry data for the editor.

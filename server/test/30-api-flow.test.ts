@@ -62,6 +62,18 @@ describe('Component A: authoring through the schema and lint', () => {
     expect(r.status).toBe(403);
   });
 
+  it('the system allocates IDs sequentially across the family, per the corpus convention', async () => {
+    // Runs against the pristine seeded corpus, before this suite authors anything.
+    const dora = await call('GET', '/api/rules/suggest-id?kind=regulatory&regime=DORA&topic=SUB2', HALE);
+    expect(dora.body.rule_id).toBe('DORA-SUB2-008'); // seven DORA rules exist, 001..007
+    const ny = await call('GET', '/api/rules/suggest-id?kind=regulatory&regime=cross_regime&jurisdiction=US-NY&topic=AI', HALE);
+    expect(ny.body.rule_id).toBe('NY-AI-005'); // NY and NYC share one sequence ending at NY-AI-004
+    const xrg = await call('GET', '/api/rules/suggest-id?kind=regulatory&regime=cross_regime&jurisdiction=EU', HALE);
+    expect(xrg.body.rule_id).toBe('XRG-003');
+    const obj = await call('GET', '/api/rules/suggest-id?kind=objection', HALE);
+    expect(obj.body.rule_id).toBe('OBJ-013');
+  });
+
   it('rejects an ID that already exists, retired included (FR-A.2)', async () => {
     const r = await call('POST', '/api/rules', HALE, { ...CLEAN_RULE, rule_id: 'ICP-DQ-001', kind: 'icp', kind_fields: { is_disqualifier: true, test_raw: 'x', rationale_raw: 'y', weight_raw: 'n/a' } });
     expect(r.status).toBe(422);
