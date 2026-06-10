@@ -452,7 +452,104 @@ function ChangesPanel({ draft, baseline }: { draft: DraftState; baseline: DraftS
   );
 }
 
-export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: () => void }) {
+function AssistPanel({
+  draft,
+  newMode,
+  onPrefill,
+}: {
+  draft: DraftState;
+  newMode: boolean;
+  onPrefill: (p: Partial<DraftState> & { kind_fields?: any }) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState<any>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const run = async (fn: () => Promise<any>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      setOut(await fn());
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="changes" style={{ marginTop: 14 }}>
+      <div className="changes-head">
+        <h3>Assistant</h3>
+        <span className="vs">drafts and flags; never approves</span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => run(() => post('/api/assist/research', { regime: draft.regime, jurisdiction: draft.jurisdiction_tags[0] }))}>
+          Research sources
+        </Button>
+        {newMode && (
+          <Button size="sm" variant="secondary" disabled={busy || !draft.statement.trim()} title="Shapes the mechanics around your rough substance" onClick={() => run(() => post('/api/assist/scaffold', { kind: draft.kind, regime: draft.regime, jurisdiction_tags: draft.jurisdiction_tags, rough: { title: draft.title, statement: draft.statement, buyer_reading: draft.buyer_reading } }))}>
+          Scaffold from my rough text
+          </Button>
+        )}
+      </div>
+      {err && <div style={{ font: '400 12px/1.5 var(--font-sans)', color: 'var(--warn-text)', marginBottom: 8 }}>{err}</div>}
+      {out?.candidates && (
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ font: '400 11.5px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
+            Sources to read yourself; no pre-written conclusions for regulatory work. {out.dropped_sourceless > 0 && `${out.dropped_sourceless} source-less candidate(s) discarded.`}
+          </div>
+          {out.candidates.map((c: any) => (
+            <div key={c.finding_id} style={{ padding: '10px 12px', background: 'var(--slate-50)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+              <div style={{ font: '500 12px/1.5 var(--font-mono)' }}>{c.authority}</div>
+              <div style={{ font: '400 12px/1.5 var(--font-sans)', color: 'var(--text-2)' }}>{c.relevance}</div>
+              {c.url && <div style={{ font: '400 11px/1.5 var(--font-mono)', color: 'var(--text-3)' }}>{c.url}</div>}
+              <div style={{ marginTop: 6 }}>
+                <Button size="sm" variant="ghost" onClick={async () => {
+                  const r = await post(`/api/assist/findings/${c.finding_id}/accept`);
+                  onPrefill(r.prefill);
+                }}>
+                  Take into draft
+                </Button>
+                <Button size="sm" variant="ghost" onClick={async () => {
+                  const reason = window.prompt('Rejected because (e.g. source unverifiable):');
+                  if (reason) { await post(`/api/assist/findings/${c.finding_id}/dismiss`, { reason }); setOut({ ...out, candidates: out.candidates.filter((x: any) => x.finding_id !== c.finding_id) }); }
+                }}>
+                  Reject
+                </Button>
+              </div>
+            </div>
+          ))}
+          {(out.abstentions ?? []).map((a: string, i: number) => (
+            <div key={i} style={{ font: '400 12px/1.5 var(--font-sans)', color: 'var(--text-3)', fontStyle: 'italic' }}>
+              {a}
+            </div>
+          ))}
+        </div>
+      )}
+      {out?.draft && (
+        <div style={{ padding: '10px 12px', background: 'var(--slate-50)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+          <div style={{ font: '400 12px/1.5 var(--font-sans)', color: 'var(--text-2)', marginBottom: 6 }}>{out.note}</div>
+          <Button size="sm" variant="secondary" onClick={() => onPrefill(out.draft)}>
+            Apply scaffold
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Authoring({
+  actor,
+  onMutate,
+  jumpTo,
+  onJumped,
+}: {
+  actor: User | null;
+  onMutate: () => void;
+  jumpTo?: string | null;
+  onJumped?: () => void;
+}) {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [rules, setRules] = useState<any[]>([]);
   const [selected, setSelected] = useState<string>('');
@@ -501,6 +598,15 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
   useEffect(() => {
     if (selected && !newMode) loadDetail(selected).catch(console.error);
   }, [selected, newMode, loadDetail]);
+
+  // ⌘K landed here with a rule in hand.
+  useEffect(() => {
+    if (jumpTo) {
+      setNewMode(false);
+      setSelected(jumpTo);
+      onJumped?.();
+    }
+  }, [jumpTo]);
 
   // The system allocates the rule ID from regime, jurisdiction and topic.
   useEffect(() => {
@@ -819,9 +925,32 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
                   onChange={(e) => set('authority_summary', e.target.value)}
                 />
               </Field>
-              <Field label="Sources" help="Where a reviewer or an auditor goes to verify the authority.">
-                {draft.sources.map((s, i) => (
+              <Field
+                label="Sources"
+                help={
+                  openVersion?.ai_assisted
+                    ? 'This draft began as an assistant draft: tick each source as read before it can go for review. The tick is the acceptance act.'
+                    : 'Where a reviewer or an auditor goes to verify the authority.'
+                }
+              >
+                {draft.sources.map((s: any, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                    {openVersion?.ai_assisted && s.id && (
+                      s.verified_by ? (
+                        <span title={`Read and ticked ${s.verified_at?.slice(0, 10)}`} style={{ color: 'var(--ok)', display: 'inline-flex' }}>
+                          <Icn name="checkCircle" size={15} />
+                        </span>
+                      ) : (
+                        <Button size="sm" variant="secondary" onClick={async () => {
+                          try {
+                            await post(`/api/rules/${draft.rule_id}/sources/${s.id}/verify`);
+                            await loadDetail(draft.rule_id);
+                          } catch (e) { setBanner({ tone: 'err', text: (e as Error).message }); }
+                        }}>
+                          Mark read
+                        </Button>
+                      )
+                    )}
                     <input
                       className="fc-input fc-mono"
                       style={{ flex: 1 }}
@@ -1048,6 +1177,16 @@ export function Authoring({ actor, onMutate }: { actor: User | null; onMutate: (
           </div>
           <ReviewPanel items={lint} serverFindings={serverFindings} onResolve={resolve} onOverride={override} />
           <ChangesPanel draft={draft} baseline={baseline} />
+          {canAuthor && (
+            <AssistPanel
+              draft={draft}
+              newMode={newMode}
+              onPrefill={(prefill) => {
+                setDraft((d) => ({ ...d, ...prefill, kind_fields: { ...d.kind_fields, ...(prefill.kind_fields ?? {}) } }));
+                setBanner({ tone: 'ok', text: 'Assistant draft loaded. Your words to verify and own; the source ticks gate submission.' });
+              }}
+            />
+          )}
         </div>
       </div>
 

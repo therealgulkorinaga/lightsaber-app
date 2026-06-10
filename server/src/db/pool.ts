@@ -5,14 +5,13 @@ const { Pool } = pg;
 export const DATABASE_URL =
   process.env.DATABASE_URL ?? 'postgres://localhost:5432/lightsaber_backoffice';
 
-export const pool = new Pool({ connectionString: DATABASE_URL });
-
 // Server sessions are practice-side by default: tenant tables sit behind
-// forced RLS and require the context GUC. Queries on a connection are
-// serialised, so this runs before anything else the client executes.
-// Tenant-scoped paths override with SET LOCAL inside their transaction.
-pool.on('connect', (client) => {
-  client.query(`SET app.is_practice = 'true'`).catch(() => {});
+// forced RLS and require the context GUC, set here as a connection startup
+// parameter. Tenant-scoped paths override with SET LOCAL inside their
+// transaction; tests prove isolation under the lsb_tenant role.
+export const pool = new Pool({
+  connectionString: DATABASE_URL,
+  options: '-c app.is_practice=true',
 });
 
 /** Run fn inside a transaction on a dedicated client. */

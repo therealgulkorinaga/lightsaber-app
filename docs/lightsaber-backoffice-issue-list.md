@@ -192,10 +192,12 @@ claims (authoring per E1.4), engagement-scoped coverage, own gap log,
 defensibility pull (records audit_pull with optional deal_closed).
 AC: RLS-proven isolation; no practice surfaces reachable; portal-only rail.
 
-**E4.4 Practice operating view** ✅
+**E4.4 Practice operating view** 🔶
 GET /api/operating: fleet freshness, authoring throughput, gate pass rate,
-ranked gaps, SLA breaches, billing stream. Folded into the practice UI.
+ranked gaps, SLA breaches, billing stream, ai-assisted share.
 AC: numbers trace to instruments; no tenant claim content in aggregates.
+Status: endpoint complete and tested; the numbers surface across the fleet,
+coverage and rail counters rather than one dedicated dashboard screen.
 
 **E4.5 Notifications counters** ✅
 Rail badges: reviews awaiting you, overdue watch items, untriaged gaps, SLA
@@ -216,10 +218,11 @@ retention_years, sla_windows, eval_runner, assist model config; GET
 /api/config; practice-lead updates audited.
 AC: config changes appear in the audit log.
 
-**E5.3 ⌘K search** ✅
-Client search over rules (ID, title, statement, authority) and claims
-(practice side); portal searches the tenant's bundle scope.
-AC: keyboard-openable, navigates to the hit.
+**E5.3 ⌘K search** 🔶
+Client search over rules (ID, title, regime, kind), keyboard-openable,
+navigates to the hit in Authoring.
+Status: practice side shipped; statement/authority full-text and a
+portal-scoped search are open follow-ups.
 
 **E5.4 Claude eval runner** 🔶
 EVAL_RUNNER=claude executes pinned eval prompts against the candidate bundle
@@ -286,10 +289,13 @@ legal advice. Stored with the review record; approval against advisory is
 recorded.
 AC: cannot approve/return/alter; renders alongside the diff.
 
-**E6.7 Assist UI** ✅
-Authoring: Scaffold panel (new mode) + Research panel; Review: advisory card;
-Coverage: "Draft with assist" on backlog items; Critic surface with findings
-management.
+**E6.7 Assist UI** 🔶
+Authoring: Research panel (sources-first, accept/reject with reasons) and
+Scaffold (new mode); Review: pre-screen advisory card; Coverage: critic
+surface with dismiss-with-reason.
+Status: gap-to-draft has a complete API but no backlog button yet; the
+authoring editor opens objection drafts read-only-shaped, so the prefill
+flow lands with the objection editor follow-up.
 
 **E6.8 Failure-mode controls (FR-AI.6)** ✅
 Eval poisoning: assists cannot write evals (no capability exists); eval_case

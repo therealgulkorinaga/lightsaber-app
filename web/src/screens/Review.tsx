@@ -3,17 +3,31 @@
 // returns it with notes. Nothing reaches a tenant from here directly.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Button, CardHead, Rid, ScreenHead, Stat, Status } from '../primitives.tsx';
+import { Badge, Button, CardHead, Rid, ScreenHead, Stat, Status } from '../primitives.tsx';
 import { get, post, type User } from '../api.ts';
 
 export function Review({ actor, onMutate }: { actor: User | null; onMutate: () => void }) {
   const [queue, setQueue] = useState<any[]>([]);
+  const [claims, setClaims] = useState<any[]>([]);
+  const [advisories, setAdvisories] = useState<Record<string, any>>({});
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await get('/api/review-queue');
     setQueue(r.queue);
+    setClaims(r.claims ?? []);
   }, []);
+
+  // FR-AI.5: a third advisory input, never one of the two approvals.
+  const preScreen = async (ruleId: string) => {
+    setError(null);
+    try {
+      const r = await post(`/api/assist/review/${ruleId}`);
+      setAdvisories((a) => ({ ...a, [ruleId]: r.advisory }));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
 
   useEffect(() => {
     load().catch(console.error);
@@ -110,12 +124,73 @@ export function Review({ actor, onMutate }: { actor: User | null; onMutate: () =
                     </Button>
                   </>
                 )}
+                {q.review_state === 'in_review' && canReview && !own && (
+                  <Button variant="ghost" size="sm" onClick={() => preScreen(q.rule_id)}>
+                    Pre-screen
+                  </Button>
+                )}
                 {q.review_state === 'in_review' && own && (
                   <span style={{ font: '400 11.5px/1.4 var(--font-sans)', color: 'var(--text-3)' }}>awaits a separate reviewer</span>
                 )}
               </div>
             );
           })}
+          {Object.entries(advisories).map(([ruleId, adv]: [string, any]) => (
+            <div key={ruleId} style={{ margin: '0 20px 14px', padding: '12px 14px', background: 'var(--slate-50)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+              <div style={{ font: '600 12px/1.4 var(--font-sans)', marginBottom: 6 }}>
+                Assistant pre-screen of {ruleId} <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>· advisory only; the decision is yours and is recorded against it</span>
+              </div>
+              {['authority_checkable', 'overreach', 'advice_drift'].map((k) => (
+                <div key={k} style={{ font: '400 12px/1.6 var(--font-sans)', color: 'var(--text-2)' }}>
+                  <Badge tone={adv[k]?.verdict === (k === 'authority_checkable' ? 'yes' : 'no') ? 'ok' : adv[k]?.verdict === 'uncertain' ? 'warn' : 'block'}>
+                    {k.replace(/_/g, ' ')}: {adv[k]?.verdict}
+                  </Badge>{' '}
+                  {adv[k]?.note}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{ marginTop: 16 }}>
+          <CardHead title="Tenant claims in review" sub="Claims are substance: same two-person rule, same lint, tenant-isolated" />
+          {claims.map((c: any) => {
+            const own = c.author_id === actor?.id;
+            const act = async (verb: string, body?: any) => {
+              try {
+                await post(`/api/tenants/${c.tenant_id}/claims/${c.rule_id}/${verb}`, body);
+                await load();
+                onMutate();
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            };
+            return (
+              <div className="imp-row" key={`${c.tenant_id}:${c.rule_id}`} style={{ padding: '14px 20px' }}>
+                <Rid>{c.rule_id}</Rid>
+                <div className="grow">
+                  <div className="r-title">{c.title}</div>
+                  <div className="r-sub">claim · {c.regime} · v{c.semver_at_author} · {c.author_name}</div>
+                </div>
+                <Status state="in_review" />
+                {canReview && !own && (
+                  <>
+                    <Button variant="secondary" size="sm" onClick={() => { const notes = window.prompt('Return with notes for the author (required):'); if (notes) act('return', { notes }); }}>
+                      Return
+                    </Button>
+                    <Button variant="primary" size="sm" onClick={() => act('approve')}>
+                      Approve
+                    </Button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {!claims.length && (
+            <div style={{ padding: '14px 20px', font: '400 12.5px/1.5 var(--font-sans)', color: 'var(--text-3)' }}>
+              No claims awaiting review.
+            </div>
+          )}
         </div>
       </div>
     </div>

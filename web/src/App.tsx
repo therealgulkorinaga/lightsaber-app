@@ -1,64 +1,70 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Topbar, Rail, useChromeData } from './chrome.tsx';
+import { Search } from './Search.tsx';
 import { Authoring } from './screens/Authoring.tsx';
 import { Review } from './screens/Review.tsx';
 import { Releases } from './screens/Releases.tsx';
 import { Watch } from './screens/Watch.tsx';
-import { Placeholder } from './screens/Placeholder.tsx';
+import { Coverage } from './screens/Coverage.tsx';
+import { Tenants } from './screens/Tenants.tsx';
+import { Portal } from './screens/Portal.tsx';
 
 export function App() {
   const [route, setRoute] = useState('authoring');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [jumpRule, setJumpRule] = useState<string | null>(null);
   const chrome = useChromeData(refreshKey);
   const bump = () => setRefreshKey((k) => k + 1);
 
+  // Tenant admins land in, and stay in, the portal.
+  useEffect(() => {
+    if (chrome.actor?.role === 'tenant_admin') setRoute('portal');
+    else if (route === 'portal') setRoute('authoring');
+  }, [chrome.actor?.id]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const screen = () => {
     switch (route) {
+      case 'portal':
+        return <Portal actor={chrome.actor} onMutate={bump} />;
       case 'review':
         return <Review actor={chrome.actor} onMutate={bump} />;
       case 'watch':
-        return <Watch />;
+        return <Watch actor={chrome.actor} onMutate={bump} />;
       case 'coverage':
-        return (
-          <Placeholder
-            title="Coverage & Gap Ledger"
-            intro="Where the seam is deep, where it is thin, and what it is costing. The matrix reads depth and freshness across jurisdictions and regimes; the backlog ranks the gaps live deals are abstaining on."
-            phase="Phase 3 (Component D)"
-            items={[
-              'Gaps flow in from live deals: every abstention the skill logs becomes a candidate for new coverage',
-              'Triage: duplicate, backlog or reject, with reasons kept',
-              'Backlog ranked by how often a gap appears and what it cost',
-              'Coverage measured per jurisdiction and regime',
-            ]}
-          />
-        );
+        return <Coverage actor={chrome.actor} onMutate={bump} />;
       case 'releases':
         return <Releases actor={chrome.actor} onMutate={bump} />;
       case 'tenants':
+        return <Tenants actor={chrome.actor} onMutate={bump} />;
+      default:
         return (
-          <Placeholder
-            title="Tenant Fleet"
-            intro="Who is running what. Each adopter pins a seam version; claims are isolated behind row-level security and never cross tenants."
-            phase="Phase 2 (Component F)"
-            items={[
-              'Provision adopters; each holds its own isolated claims file',
-              'Tenant claims authored by the adopter, approved through Review like any substance',
-              'Pin each adopter to a published seam version; deploy and upgrade on approval',
-              'A read-only client portal: coverage, freshness, audit pulls',
-            ]}
+          <Authoring
+            key={chrome.actor?.id ?? 'anon'}
+            actor={chrome.actor}
+            onMutate={bump}
+            jumpTo={jumpRule}
+            onJumped={() => setJumpRule(null)}
           />
         );
-      default:
-        return <Authoring key={chrome.actor?.id ?? 'anon'} actor={chrome.actor} onMutate={bump} />;
     }
   };
 
   return (
     <div className="loom">
-      <Topbar data={chrome} onUserChange={bump} />
+      <Topbar data={chrome} onUserChange={bump} onSearch={() => setSearchOpen(true)} />
       <Rail route={route} onRoute={setRoute} data={chrome} />
-      {/* Screens make authenticated calls; hold them until the dev
-          user-switcher has resolved an identity, or the first load 401s. */}
       <div className="lm-main">
         {chrome.actor ? (
           screen()
@@ -70,11 +76,17 @@ export function App() {
             </a>
           </div>
         ) : (
-          <div style={{ padding: 28, font: '400 13px/1.6 var(--font-sans)', color: 'var(--text-3)' }}>
-            Signing in…
-          </div>
+          <div style={{ padding: 28, font: '400 13px/1.6 var(--font-sans)', color: 'var(--text-3)' }}>Signing in…</div>
         )}
       </div>
+      <Search
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onPick={(ruleId) => {
+          setJumpRule(ruleId);
+          setRoute('authoring');
+        }}
+      />
     </div>
   );
 }

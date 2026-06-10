@@ -18,7 +18,19 @@ artifact: seeded in, regenerated on publish, byte-identical on the round trip.
 | `web/` | Vite + React app, design CSS/components ported and wired |
 | `packages/voice-lint/` | The voice kill-list lint, shared by editor and gate |
 
-## Phase 1 scope (built)
+## Scope (built)
+
+Phases 1–3 are implemented: the authoring backbone (A, B, E, G), tenancy and
+deployment (F), regime watch and reactivation (C), the gap ledger and coverage
+(D), the services layer and tenant portal (H), and the assisted-authoring
+component (AI) inside its failure-mode guardrails (eval independence, source
+read-ticks, sources-without-conclusions for high-risk research, ai_assisted
+provenance through to defensibility reports). See
+`docs/lightsaber-backoffice-phase23-prd.md` and
+`docs/lightsaber-backoffice-issue-list.md` for the FR map and honest status
+of every issue.
+
+## Phase 1 scope (original)
 
 Components **A** (Authoring Workspace), **B** (Review & Approval), **E** (Eval &
 Release Gate), **G** (Provenance, Audit & Defensibility), single tenant. Tenancy,
@@ -68,6 +80,15 @@ Builds a fresh `lightsaber_backoffice_test` database, migrates, seeds, then runs
 - `30-api-flow` — the Phase 1 definition of done end to end: author → lint →
   review → approve → candidate → gate blocks red → fix → green → publish →
   reproduce → defensibility report
+- `40-tenants` — provision → engagement → claims under the two-person rule →
+  deploy with claims slotted (FR-7.3) → isolation (FR-7.1/7.2) → upgrade with
+  reproducibility across it (FR-7.4) → billing
+- `50-watch-gaps` — trigger → stale cascade (overlay; history stays
+  byte-stable) → impact report → re-author → resolve → publish closes SLA,
+  retainer and gap; bounded gap ingestion; ranking; coverage matrix
+- `60-assist` — refusal without credentials; deterministic critic; scaffold
+  mechanics; eval-poisoning and anchoring controls; ai_assisted provenance
+  through a release pin into the defensibility report
 
 The gate runs genuinely red on the seeded corpus: eval case 2 still cites
 ICP-DQ-001, which seam 1.1.0 retired. That block is correct behaviour; the flow

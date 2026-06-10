@@ -15,6 +15,7 @@ export interface ChromeData {
   counts: { regulatory: number; icp: number; objection: number; messaging: number };
   queueCount: number;
   watchCount: number;
+  gapsUntriaged: number;
   error: string | null;
 }
 
@@ -27,6 +28,7 @@ export function useChromeData(refreshKey: number): ChromeData {
     counts: { regulatory: 0, icp: 0, objection: 0, messaging: 0 },
     queueCount: 0,
     watchCount: 0,
+    gapsUntriaged: 0,
     error: null,
   });
 
@@ -40,11 +42,23 @@ export function useChromeData(refreshKey: number): ChromeData {
       }
       const actor = users.find((u) => u.id === uid) ?? null;
 
-      const [rules, releases, queue, watch] = await Promise.all([
+      // Tenant admins live in the portal; the practice surfaces would 403.
+      if (actor?.role === 'tenant_admin') {
+        const portal = await get('/api/portal').catch(() => null);
+        setData((d) => ({
+          ...d, users, actor,
+          seamVersion: portal?.pinned_version ?? '—',
+          candidate: null, queueCount: 0, watchCount: 0, gapsUntriaged: 0, error: null,
+        }));
+        return;
+      }
+
+      const [rules, releases, queue, watch, gaps] = await Promise.all([
         get('/api/rules'),
         get('/api/releases'),
         get('/api/review-queue'),
         get('/api/watch'),
+        get('/api/gaps?status=untriaged'),
       ]);
       const counts = { regulatory: 0, icp: 0, objection: 0, messaging: 0 };
       for (const r of rules.rules) {
@@ -62,8 +76,11 @@ export function useChromeData(refreshKey: number): ChromeData {
         seamVersion: published?.version ?? '—',
         candidate: candidate?.version ?? null,
         counts,
-        queueCount: queue.queue.filter((q: any) => q.review_state === 'in_review').length,
-        watchCount: watch.items.filter((w: any) => w.status !== 'resolved').length,
+        queueCount:
+          queue.queue.filter((q: any) => q.review_state === 'in_review').length +
+          (queue.claims?.length ?? 0),
+        watchCount: watch.items.filter((w: any) => ['triggered', 'reauthoring', 'overdue'].includes(w.status)).length,
+        gapsUntriaged: gaps.gaps.length,
         error: null,
       });
     })().catch((e) => {
@@ -84,7 +101,7 @@ export function useChromeData(refreshKey: number): ChromeData {
   return data;
 }
 
-export function Topbar({ data, onUserChange }: { data: ChromeData; onUserChange: () => void }) {
+export function Topbar({ data, onUserChange, onSearch }: { data: ChromeData; onUserChange: () => void; onSearch: () => void }) {
   return (
     <>
       <div className="lm-brand">
@@ -94,7 +111,7 @@ export function Topbar({ data, onUserChange }: { data: ChromeData; onUserChange:
         <span className="mark-sub">Backoffice</span>
       </div>
       <div className="lm-top">
-        <div className="lm-search">
+        <div className="lm-search" onClick={onSearch} style={{ cursor: 'pointer' }}>
           <Icn name="search" size={14} />
           <span>Search rules, regimes, authorities…</span>
           <span style={{ display: 'inline-flex', gap: 3 }}>
@@ -138,6 +155,7 @@ const RAIL = [
   { num: '05', key: 'releases', label: 'Releases', icon: 'layers' },
   { num: '06', key: 'tenants', label: 'Tenants', icon: 'building' },
 ];
+const PORTAL_RAIL = [{ num: '01', key: 'portal', label: 'Your seam', icon: 'building' }];
 
 export function Rail({
   route,
@@ -149,11 +167,15 @@ export function Rail({
   data: ChromeData;
 }) {
   const count = (key: string) =>
-    key === 'review' ? data.queueCount || null : key === 'watch' ? data.watchCount || null : null;
+    key === 'review' ? data.queueCount || null
+    : key === 'watch' ? data.watchCount || null
+    : key === 'coverage' ? data.gapsUntriaged || null
+    : null;
+  const rail = data.actor?.role === 'tenant_admin' ? PORTAL_RAIL : RAIL;
   return (
     <nav className="lm-rail">
-      <div className="lm-rail-section">Seam</div>
-      {RAIL.map((it) => (
+      <div className="lm-rail-section">{data.actor?.role === 'tenant_admin' ? 'Portal' : 'Seam'}</div>
+      {rail.map((it) => (
         <a
           key={it.key}
           className="lm-nav"
