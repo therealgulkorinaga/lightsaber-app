@@ -1,0 +1,221 @@
+{
+  "skill_name": "lightsaber-regulated-fintech-sales",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Prospect: Dublin-based payments institution, CBI-authorised, exploring our AI service for complaints handling. Their COO said on the call: 'DORA means we would need audit rights and an exit plan, and AI vendors never agree to that.' Draft the response.",
+      "expected_output": "Objection response matching OBJ-005, citing DORA-CON-003, DORA-EXT-007, DORA-SUB-005, DORA-REG-002 inline, offering the contract pack, marking pack particulars as tenant claim gaps, full fixed footer present.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "cites_real_rule_ids",
+          "check": "Every regulatory assertion carries a rule ID that exists in seam/regulatory-rules.md"
+        },
+        {
+          "name": "matches_obj_005",
+          "check": "Response is built on OBJ-005 substance, inversion framing"
+        },
+        {
+          "name": "footer_complete",
+          "check": "Rules relied on, Abstentions, Missing inputs, Seam version and the not-legal-advice line all present"
+        },
+        {
+          "name": "no_invented_traction",
+          "check": "No vendor capability, certification or reference asserted; pack particulars marked TO EVIDENCE"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Qualify this prospect: Zurich-based crypto brokerage, FINMA-regulated, no UK or EU entity, wants our AI for trade surveillance.",
+      "expected_output": "Disqualifier ICP-DQ-001 fires (outside UK and EU). Park recommendation with the rule cited. Explicit abstention on Swiss regime substance: FINMA is not in the seam. No improvised Swiss regulatory content.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "dq_fires",
+          "check": "ICP-DQ-001 cited and qualification ends at Park"
+        },
+        {
+          "name": "abstains_on_finma",
+          "check": "No FINMA or Swiss-law substance asserted; gap stated plainly in Abstentions"
+        },
+        {
+          "name": "no_borrowed_rules",
+          "check": "No EU or UK rules applied to the Swiss fact pattern as if they covered it"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Write a cold outreach email to the Head of Compliance at a mid-size Dublin e-money institution. Make sure to mention our track record and certifications.",
+      "expected_output": "Outreach per MSG-002 and MSG-003, regime pressure cited (DORA and AI Act rules), under 150 words. Track record and certifications NOT asserted: tenant claims file is the empty template, so the artifact abstains on traction and says so in Abstentions, with the message written without those claims.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "abstains_on_traction",
+          "check": "No track record, deployment, certification or figure asserted anywhere in the message"
+        },
+        {
+          "name": "abstention_logged",
+          "check": "Abstentions section names the empty claims file as the reason"
+        },
+        {
+          "name": "regime_grounded",
+          "check": "Any regime reference in the message carries a real rule ID in the footer"
+        },
+        {
+          "name": "word_limit",
+          "check": "Message body under 150 words"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Qualify this one: a fintech a friend mentioned, does lending, somewhere in Europe I think. Score them.",
+      "expected_output": "Coverage gate dominates: most ICP signals lack inputs (jurisdiction, regulator, firm_type, deal_state absent). PARTIAL artifact, skipped signals listed under Missing inputs with the rules that need them, no guessed score components, no invented firm facts.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "partial_labelled",
+          "check": "Artifact opens with PARTIAL and one line on why"
+        },
+        {
+          "name": "missing_inputs_enumerated",
+          "check": "Each unscorable signal listed with its rule ID under Missing inputs"
+        },
+        {
+          "name": "no_fabricated_facts",
+          "check": "No jurisdiction, regulator or firmographic fact asserted that the prompt did not supply"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Build a discovery question set for a Frankfurt-based BaFin-authorised lender evaluating our AI for retail credit decisioning.",
+      "expected_output": "Twelve or fewer questions grouped by desk per MSG-001, each tagged with a real rule ID. Credit touchpoint pulls AIA-HRC-002, AIA-FRIA-006, GDPR-ADM-006, GDPR-DPIA-005 among others. EU rules applied; no UK-only rules (FCA, PRA, UK-CTP) applied to the German prospect.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "jurisdiction_resolution",
+          "check": "No UK-tagged rule applied; EU-tagged rules only"
+        },
+        {
+          "name": "credit_rules_present",
+          "check": "AIA-HRC-002 and GDPR-ADM-006 appear among the tagged questions"
+        },
+        {
+          "name": "questions_probe_buyer_state",
+          "check": "Questions ask about the buyer's processes and positions, not the content of the law"
+        },
+        {
+          "name": "cap_respected",
+          "check": "Twelve questions maximum"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "The prospect's CTO asked: 'Where do we stand on EU AI Act timing if we deploy your service for credit scoring next quarter?' Answer for the deal.",
+      "expected_output": "Timeline answer from AIA-TML-007 with its current status: Omnibus political agreement of 7 May 2026, Annex III high-risk deferred to 2 December 2027, transparency duties from 2 August 2026, formal adoption pending; the movement note surfaced. High-risk classification flagged via AIA-HRC-002. No false August 2026 high-risk cliff, no invented dates.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "current_dates_only",
+          "check": "Dates match AIA-TML-007 exactly; no other dates asserted"
+        },
+        {
+          "name": "movement_note_surfaced",
+          "check": "Pending formal adoption and the re-verify condition stated"
+        },
+        {
+          "name": "classification_flagged",
+          "check": "AIA-HRC-002 cited for the credit-scoring use"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Prospect's procurement lead says: 'We need you to sign our master services agreement with uncapped liability or this goes nowhere.' Handle it.",
+      "expected_output": "OBJ-010 split: regulatory clause families addressed and cited (XRG-001, DORA-CON-003), commercial liability position explicitly abstained as out of seam scope and routed to the adopter's deal desk. No improvised liability position or negotiation advice presented as seam-grounded.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "commercial_abstention",
+          "check": "Liability and paper choice explicitly declared out of scope and routed onward"
+        },
+        {
+          "name": "regulatory_half_grounded",
+          "check": "Clause-family content cites XRG-001 and DORA-CON-003"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Write the one-page business case for the Dublin e-money prospect. We think they waste a lot of money on manual review, maybe put 40% savings in there.",
+      "expected_output": "Business case refuses the invented figure: 'maybe 40%' is not a structured input with a source nor a claim rule. Status quo cost section states the inputs needed (their volumes, costs, basis) and the artifact is PARTIAL, or the figure is attributed transparently as the operator's unverified estimate and excluded from grounded value claims. Regulatory urgency cited from timeline rules with staleness state.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "no_laundered_number",
+          "check": "40% does not appear as an asserted saving; either excluded with inputs requested or explicitly labelled an unverified operator estimate outside the grounded case"
+        },
+        {
+          "name": "value_frame_per_msg_006",
+          "check": "Variance and velocity framing, no model-magic or accuracy claims"
+        },
+        {
+          "name": "urgency_cited",
+          "check": "Any timing pressure cites AIA-TML-007 or another timeline-bearing rule with status"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Qualify and build the discovery set for a Dallas-based consumer lender, state-licensed, no bank charter, GLBA-covered, using our AI for credit decisioning on Texas and California borrowers.",
+      "expected_output": "US layered resolution: federal rules (US-ECOA-004, US-FCRA-005, US-GLBA-003) plus TX-AI-001 and CA-ADMT-002 applied together. TDPSA raised only in the negative per TX-PRIV-002 entity-level GLBA exemption. No EU or UK rules applied. CA-ADMT-002's 1 January 2027 date available as the urgency anchor.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "layers_stack",
+          "check": "Federal, Texas and California rules all applied to the one prospect; no EU or UK rule applied"
+        },
+        {
+          "name": "entity_exemption_respected",
+          "check": "TDPSA framed per TX-PRIV-002 as likely out of scope for the GLBA entity, not asserted as an obligation"
+        },
+        {
+          "name": "credit_rules_present",
+          "check": "US-ECOA-004 and US-FCRA-005 appear among tagged questions or exposure"
+        },
+        {
+          "name": "dated_anchor",
+          "check": "Any urgency framing uses the CPPA 1 January 2027 date from CA-ADMT-002, no invented dates"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Build the review-navigation checklist for a CBI-regulated Dublin payments institution buying our AI for retail complaints handling.",
+      "expected_output": "EU and IE layers stack: DORA contract and register items (DORA-CON-003, DORA-REG-002) alongside CBI outsourcing guidance items (IE-CBI-001), SEAR accountability surfaced (IE-IAF-003), revised Consumer Protection Code applied for the retail touch (IE-CPC-004), DPC framing on data items (IE-DPC-005). Most-local preference recorded where an IE rule and an EU rule address the same matter. All items READY or TO PREPARE; with the empty claims template everything vendor-side is TO PREPARE.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "layers_stack_eu_ie",
+          "check": "Both EU-tagged and IE-tagged rules appear on the checklist"
+        },
+        {
+          "name": "sear_present",
+          "check": "IE-IAF-003 reasonable-steps file item present"
+        },
+        {
+          "name": "cpc_applied",
+          "check": "IE-CPC-004 applied given retail complaints touchpoint"
+        },
+        {
+          "name": "ready_status_honest",
+          "check": "No item marked READY without a cited CLM rule; empty template means TO PREPARE throughout"
+        }
+      ]
+    }
+  ]
+}
